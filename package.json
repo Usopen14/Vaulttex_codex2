@@ -1,0 +1,13 @@
+{
+  "name": "vault-wendy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wendy M1 provider-neutral domain contracts",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "engines": {
+    "node": ">=25"
+  }
+}
