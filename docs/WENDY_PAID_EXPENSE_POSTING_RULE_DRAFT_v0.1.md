@@ -1,58 +1,117 @@
-# PAID_EXPENSE Posting Rule Contract v0.1 — Draft for Review
+# PAID_EXPENSE Posting Rule Contract v0.1 — M2 Entry Review Draft
 
 **Product:** Vault
 **Engine:** Wendy
 **Rule ID:** `PAID_EXPENSE`
 **Draft rule version:** `0.1.0-draft`
-**Status:** `PENDING/TBD` — not approved, not executable, and not normative for posting
+**Status:** `DRAFT/PENDING` — Product Owner M2-entry decisions approved; Accounting and Engineering decisions remain pending
 **Review owners:** Product Owner and Accounting
-**Owner:** `PENDING/TBD`
-**Approver:** `PENDING/TBD`
-**Decision date:** `PENDING/TBD`
+**Product Owner approver:** Product Owner
+**Accounting approver:** `PENDING/TBD`
+**Product Owner decision date:** 2026-09-11
+**Accounting decision date:** `PENDING/TBD`
+**M2 authorization gate:** `NOT READY`
 
-## 1. Purpose and boundary
+## 1. Purpose, authority, and review rule
 
-This is a review draft for the future M2 Accounting Engine. It does not implement a posting rule and it does not authorize a journal, debit/credit construction, account selection, period authorization, or Ledger posting.
+M1 is formally closed and accepted. This document prepares only the formal M2 entry review for the future `PAID_EXPENSE` posting rule. It does not alter M1 behavior and does not implement accounting, period, or Ledger code.
 
-Its only M1 role is to make the future approval target explicit. Until the review metadata above is completed with real approval evidence, M2 cannot consume this draft as an approved rule.
+`ExpenseRecognized` and `PaymentMade` remain two distinct Financial Events. In the supported first slice their canonical relationship is:
 
-## 2. Proposed contract frame (not executable)
+```text
+PaymentMade --FULFILLS--> ExpenseRecognized
+```
 
-| §24.1 attribute | Draft proposal | Review state |
+No unresolved item below becomes policy merely by appearing in this draft. Until the required approvals are recorded, the rule MUST NOT construct a journal, select an account, obtain posting permission, or write to the Ledger.
+
+**Product Owner approval evidence:** Product Owner PAID_EXPENSE M2-entry decision supplied in this Codex task on 2026-09-11. This approves only the Product Owner decisions in §2; it does not approve Accounting decisions, Engineering contracts, an immutable rule version, or M2 implementation.
+
+Decision labels:
+
+- `DECIDED_M1`: already constrained by approved M1 contracts or Product Owner decisions.
+- `REQUIRES_FORMAL_DECISION`: must be approved for this rule before M2 is authorized.
+- `OUT_OF_SCOPE`: intentionally not part of the PAID_EXPENSE M2 entry review.
+
+## 2. Product Owner decisions
+
+| Topic | Current draft position | State | Formal decision required |
+|---|---|---|---|
+| Supported event combination | Exactly one confirmed, validated immediate paid-expense pair: `ExpenseRecognized` plus `PaymentMade --FULFILLS--> ExpenseRecognized`; same organization, `economic_group_id`, THB decimal value, first-slice dates, and an approved Cash/Bank source. Split/partial payments, tips, fees, refunds, reimbursements, prepayments, accruals, card clearing/settlement, mixed currency, and unsupported tax treatment are excluded. | `DECIDED_M1` + `APPROVED_FOR_M2_ENTRY` | No new combination may be included without a versioned Product Owner decision. |
+| Required inputs | The linked events, relationship, source/evidence references, approval state, event/schema/rule-context versions, organization identity, AccountingProfile, selected COA version, and a separate Period Engine authorization reference are required to evaluate or post. | `APPROVED_FOR_M2_ENTRY` | Engineering must freeze the exact M2 request DTO and the required profile/COA version selectors. |
+| Approval / review behavior | `USER_CONFIRM` confirms intended source/business facts only. It does not approve accounting treatment, tax treatment, a period override, or Ledger posting. A service cannot satisfy that human confirmation. | `APPROVED_FOR_M2_ENTRY` | Accounting/Engineering must define authorized posting/review capabilities and any approval-control mode. |
+| Fallback behavior | Any material ambiguity in amount, organization, event semantics, account resolution, posting date/period, approval authority, or balancing prevents posting. Unknown/inactive/ambiguous mappings MUST fail closed or require review. No silent Suspense, Miscellaneous Expense, guessed account, or guessed accounting treatment is allowed. | `APPROVED_FOR_M2_ENTRY` | Engineering must freeze the error/review transport contract; Accounting must approve mapping remediation. |
+| User-visible outcome | The canonical domain outcomes are `POSTED`, `REVIEW_REQUIRED`, `REJECTED`, `DUPLICATE`, and `PERIOD_DENIED`. UI wording may vary, but the outcomes remain distinguishable. | `APPROVED_FOR_M2_ENTRY` | Engineering must freeze the result DTO, permitted existing-result reference for duplicates, and presentation/API mapping. |
+
+### 2.1 Approved exception routing and outcome meaning
+
+| Outcome | Product Owner-approved meaning | Posting effect |
 |---|---|---|
-| Input | One confirmed, validated paid-expense pair: `ExpenseRecognized` plus `PaymentMade --FULFILLS--> ExpenseRecognized`; frozen organization accounting profile, COA version, and approved rule context. | `PENDING/TBD` |
-| Validation | Confirmed statuses, same organization/economic group/money/dates, exactly one relationship, active compatible account mappings, and explicit M2 Period Engine authorization. | `PENDING/TBD` |
-| Authority | Accounting Engine owns final account mapping and balanced construction; Period Engine owns authorization; Ledger Posting Service owns atomic posting. | `PENDING/TBD` |
-| Output | A future M2 Accounting Engine-owned accounting result. This M1 draft deliberately defines no `JournalDraft` schema, lines, debit/credit values, or posting call. | `PENDING/TBD` |
-| Errors | Use the Wendy error envelope; unresolved mapping and missing authority must be rejected or reviewed, never silently routed to suspense. | `PENDING/TBD` |
-| Versioning | Immutable `rule_id`, `rule_version`, COA version, organization policy version, and upstream event schema/rule-context versions must be persisted by the M2 implementation. | `PENDING/TBD` |
-| Idempotency | M2 must supply an immutable operation/idempotency contract before execution; it must not reuse the M1 event idempotency key without an approved scope rule. | `PENDING/TBD` |
-| Traceability | Future output must retain both event IDs, relationship ID, sources/evidence, rule versions, actor, request/trace IDs, and authorization reference. | `PENDING/TBD` |
+| `POSTED` | The expense/payment was successfully posted exactly once. | One canonical accounting/Ledger effect. |
+| `REVIEW_REQUIRED` | Financial meaning is plausible but incomplete or ambiguous: category cannot be resolved deterministically; payment source is known but its account mapping is unresolved; required evidence/confirmation is missing; an accounting/tax dependency needs human review; or period policy requests escalation rather than hard rejection. | No post. |
+| `REJECTED` | The request is hard-invalid, unauthorized, unsupported, or violates a hard invariant: invalid schema/amount, unauthorized organization/actor, unsupported posting currency, impossible/prohibited state transition, or source/event hard-invariant violation. | No post. |
+| `DUPLICATE` | The request/event was already processed. It is an idempotent replay, not a request for a second post. Return/reference the existing canonical result where permitted. | No new accounting or Ledger effect. |
+| `PERIOD_DENIED` | Posting was not allowed for the requested accounting period. It is distinct from `REJECTED`; later Period/approval policy may allow a controlled adjustment/reopen route. | No post before Period Engine authorizes. |
 
-## 3. Preconditions proposed for accounting review
+Product Owner review is complete for the M2-entry scope, routing semantics, fail-closed rule, and canonical outcomes. An unposted event MUST NOT be presented as a Ledger posting.
 
-1. The two events are distinct, confirmed, validated, and linked by exactly one `FULFILLS` relation in the canonical direction.
-2. Both events share organization, `economic_group_id`, THB amount, and the immediate-paid-expense date constraint from the first-event schema.
-3. The organization has the locked minimum COA seed. The future mapping must resolve a final active postable expense account and an active postable cash/bank account; it must not infer a fictional bank account.
-4. Tax observations remain `OBSERVATION_ONLY`; no VAT, WHT, or CIT effect is implied by this rule draft.
-5. The later M2 service obtains a separate explicit Period Engine authorization. Confirmation of the events is not posting authorization.
+## 3. Accounting decisions requiring explicit approval
 
-## 4. Decisions intentionally left blank
+Accounting owns final GL mapping, debit/credit semantics, balancing, and correction behavior. None of these rows authorizes an implementation until Accounting approval is recorded.
 
-- The category-to-account mapping table and any fallback behavior.
-- The specific payment-source-to-account mapping policy.
-- Any debit/credit construction, balancing convention, journal identifiers, or Ledger API behavior.
-- Treatment of split payments, fees, discounts, reimbursements, prepayments, accruals, refunds, foreign currency, and tax effects.
-- Authorization thresholds, separation of duties, and approval-control modes.
-- Exact M2 fingerprint/idempotency canonicalization.
+| Topic | Constraint already known | State | Exact formal decision required |
+|---|---|---|---|
+| Debit / credit semantics | A PAID_EXPENSE rule must produce a balanced accounting result only through the future Accounting Engine. M1 intentionally defines no lines, sides, or amounts. | `REQUIRES_FORMAL_DECISION` | Approve the debit/credit treatment for the supported combination and the permitted construction rules. |
+| Category-to-account resolution | `expense_category` is not an `account_id`. The minimum COA provides system semantics, but does not itself create a final organization mapping. | `REQUIRES_FORMAL_DECISION` | Approve a versioned, organization-scoped mapping basis for each supported category, active/postable eligibility, ambiguity handling, and mapping-change history. Do not hard-code organization-specific account IDs in the rule. |
+| Payment-source-to-account resolution | `payment_source_ref` is not a GL account ID. Bank accounts may be organization CUSTOM accounts under the seed header; no fictional bank account exists in the seed. | `REQUIRES_FORMAL_DECISION` | Approve a versioned one-to-one organization payment-source mapping, active/postable eligibility, cash-on-hand handling, ambiguity handling, and historical reproducibility. |
+| Posting-date semantics | The first event schema has explicit `effective_date`, `accounting_date`, and `payment_date`; immediate paid expense currently requires them to match. Event confirmation is not period authorization. | `REQUIRES_FORMAL_DECISION` | Approve which accounting date is proposed for posting, organization-timezone treatment, late-event handling, and the relationship to an authorized accounting period. |
+| Balancing and correction behavior | A confirmed FinancialEvent is immutable; event corrections are linked reversal/adjustment/supersession facts. M1 has no journal or ledger mutation behavior. | `REQUIRES_FORMAL_DECISION` | Approve balancing validation, a journal-level correction/reversal approach, permitted correction triggers, historical reconstruction, and whether a failed post has any accounting effect. |
+| Tax treatment | Tax observations are `OBSERVATION_ONLY`; the first slice does not create authoritative VAT/WHT/CIT treatment or tax-account effects. | `OUT_OF_SCOPE` | Keep out of this rule unless a separately approved Tax Engine capability changes the scope. |
 
-## 5. Review examples and candidate acceptance tests
+### 3.1 Accounting approval agenda
 
-| Example | Expected review outcome (not implemented) |
-|---|---|
-| Confirmed matching `MARKETING` expense + completed bank payment + active approved mappings + period authorization | Eligible for an M2 rule evaluation only after formal rule approval. |
-| Payment source has no one-to-one active postable mapping | Reject or route to review; no silent suspense account. |
-| Tax observation mentions VAT or WHT | Preserve as observation only; no tax treatment or tax-account effect. |
-| Pair has differing amount, organization, date, or lacks the one `FULFILLS` link | Reject before any M2 accounting construction. |
+Accounting must explicitly approve or reject each question below; this draft supplies no answer.
 
-Future acceptance tests must be approved alongside the final rule and must demonstrate each §24.1 attribute, frozen version provenance, idempotency behavior, explicit period authorization, and no unauthorized tax treatment.
+1. **Debit/credit treatment:** What are the permitted debit and credit semantics for the sole supported event pair, and what account eligibility must be checked before construction?
+2. **Category resolution:** What versioned organization-scoped mapping resolves each supported `expense_category`, how is a mapping made effective-dated, and when does an ambiguity route to `REVIEW_REQUIRED` rather than `REJECTED`?
+3. **Payment-source resolution:** What versioned mapping resolves a `payment_source_ref` to exactly one active postable Cash/Bank account, including Cash on Hand and organization CUSTOM bank accounts?
+4. **Posting date:** Which explicit event date is proposed to the Period Engine, how is the organization timezone applied, and what happens for late events or a period denial/escalation?
+5. **Balancing and correction:** What balanced-result invariant applies, and how are journal-level correction/reversal records linked to immutable event correction relationships without rewriting history?
+
+## 4. Engineering contracts
+
+Engineering must implement only the contract that Product Owner and Accounting approve. These are required contract decisions, not implementation proposals.
+
+| Topic | Constraint already known | State | Exact formal decision required |
+|---|---|---|---|
+| Idempotency scope | M1 event/confirmation idempotency does not automatically define Ledger-posting idempotency. Same key with changed input must conflict within its approved operation scope. | `REQUIRES_FORMAL_DECISION` | Define operation identity, organization scope, key lifetime, input/result hashes, retry response, and conflict/error behavior for posting. |
+| Event fingerprint canonicalization | M1 has an `event_fingerprint` field but deliberately defers its exact canonicalization algorithm. | `REQUIRES_FORMAL_DECISION` | Freeze versioned canonical inputs, field order/normalization, hash algorithm/encoding, collision response, and relation to duplicate detection. |
+| Authorization / separation of duties | Domain roles are organization-scoped labels, not authorization. `USER_CONFIRM` is not a posting authorization. | `REQUIRES_FORMAL_DECISION` | Define server-enforced capabilities, role/actor requirements, amount or risk thresholds if any, separation-of-duties rules, service identity constraints, and audit evidence. |
+| Period Engine authorization | The Period Engine alone grants/denies posting permission. An AccountingPeriod status is not itself authorization. | `REQUIRES_FORMAL_DECISION` | Define the request/response contract, target date/period inputs, authorization reference, expiry/version behavior, and denial handling. |
+| Atomic/idempotent Ledger posting | The future Ledger Posting Service owns an atomic post and provenance boundary; M1 contains no Ledger write. | `REQUIRES_FORMAL_DECISION` | Define transaction boundary, journal/result identity, exactly-once retry semantics, storage/provenance/audit writes, failure rollback, concurrency behavior, and response contract. |
+
+## 5. Required review evidence and acceptance criteria
+
+Before the status can change from `DRAFT/PENDING`, the reviewers must record an approval or rejection for every `REQUIRES_FORMAL_DECISION` row above. A complete approval package must include:
+
+1. Recorded Product Owner approval evidence for the M2-entry scope, routing semantics, fail-closed behavior, and canonical outcomes.
+2. Accounting decision for debit/credit semantics, versioned category and payment-source mappings, posting-date meaning, balancing, and correction behavior.
+3. Engineering contract decision for idempotency, fingerprint canonicalization, authorization/SOD, Period Engine authorization, and atomic Ledger behavior.
+4. Named Accounting approver, decision date, approved immutable rule version, and immutable approval evidence reference.
+5. Approved contract tests that prove: unsupported combinations stop; unresolved mappings fail closed or route to approved review; no silent suspense route; no tax determination; no post without authorization; retry cannot duplicate a Ledger effect; and correction preserves prior history.
+
+## 6. Exact unresolved decisions blocking `M2 READY / AUTHORIZED`
+
+M2 MUST NOT be marked `READY / AUTHORIZED` until all items below have an approved decision and evidence.
+
+1. **Accounting rule semantics:** debit/credit treatment; category-to-account mapping policy; payment-source-to-account mapping policy; posting-date semantics; balancing and journal correction/reversal policy.
+2. **Engineering execution contract:** posting idempotency scope; exact fingerprint canonicalization; server authorization/SOD; Period Engine authorization API/semantics; atomic/idempotent Ledger posting and rollback/provenance guarantees.
+3. **Accounting approval evidence:** named Accounting approver, approval date, immutable evidence reference, and an approved immutable rule version that incorporates the Product Owner-approved M2-entry semantics.
+4. **Approved acceptance tests:** the agreed contract/invariant suite for the Accounting and Engineering decisions, including the Product Owner-approved fail-closed and routing behavior.
+
+## 7. Explicit exclusions
+
+- No M2 code, `JournalDraft`, debit/credit construction, account mapping data, Period Engine integration, or Ledger posting implementation is contained in this draft.
+- No hard-coded organization-specific account IDs or fictional bank accounts.
+- No silent suspense fallback.
+- No authoritative VAT, WHT, CIT, TaxPosition, TaxFilingSnapshot, filing, amendment, acknowledgement, or Tax Filing workflow. Tax Filing workflow remains deferred to M7.
+- No LINE or AI integration, reconciliation, or Financial State behavior.
