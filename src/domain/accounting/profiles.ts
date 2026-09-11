@@ -1,65 +1,52 @@
-import { DomainValidationError, requireIsoDate, requireNonEmpty } from "../common/errors.ts";
+import { WendyDomainError, requireNonEmpty } from "../common/errors.ts";
 import type { OrganizationId, TaxProfileId } from "../common/ids.ts";
+import { assertDateNotBefore, type IsoDate } from "../common/time.ts";
 
 export interface AccountingProfile {
-  readonly organizationId: OrganizationId;
-  readonly fiscalYearStart: string;
-  readonly fiscalYearEnd: string;
-  readonly accountingStandard: string;
-  readonly entityType: string;
-  readonly functionalCurrency: "THB";
+  readonly organization_id: OrganizationId;
+  readonly fiscal_year_start: IsoDate;
+  readonly fiscal_year_end: IsoDate;
+  readonly accounting_standard: string;
+  readonly entity_type: string;
+  readonly functional_currency: "THB";
   readonly timezone: string;
 }
 
 export interface TaxProfile {
-  readonly taxProfileId: TaxProfileId;
-  readonly organizationId: OrganizationId;
-  readonly jurisdiction: string;
+  readonly tax_profile_id: TaxProfileId;
+  readonly organization_id: OrganizationId;
   readonly status: string;
-  readonly effectiveFrom: string;
-  readonly effectiveTo?: string;
-  readonly configurationRef?: string;
+  readonly effective_from: IsoDate;
+  readonly effective_to?: IsoDate;
+  readonly configuration_ref?: string;
 }
 
 export function createAccountingProfile(input: AccountingProfile): AccountingProfile {
-  const fiscalYearStart = requireIsoDate(input.fiscalYearStart, "fiscalYearStart");
-  const fiscalYearEnd = requireIsoDate(input.fiscalYearEnd, "fiscalYearEnd");
-
-  if (fiscalYearEnd < fiscalYearStart) {
-    throw new DomainValidationError(
-      "INVALID_SCHEMA",
-      "fiscalYearEnd must not be before fiscalYearStart",
-      "fiscalYearEnd",
-    );
-  }
-
-  if (input.functionalCurrency !== "THB") {
-    throw new DomainValidationError("RULE_VIOLATION", "M1 functional currency must be THB", "functionalCurrency");
+  assertDateNotBefore(input.fiscal_year_start, input.fiscal_year_end, "fiscal_year_end");
+  if (input.functional_currency !== "THB") {
+    throw new WendyDomainError("RULE_VIOLATION", "M1 functional_currency must be THB", {
+      field: "functional_currency",
+    });
   }
 
   return Object.freeze({
     ...input,
-    fiscalYearStart,
-    fiscalYearEnd,
-    accountingStandard: requireNonEmpty(input.accountingStandard, "accountingStandard"),
-    entityType: requireNonEmpty(input.entityType, "entityType"),
+    accounting_standard: requireNonEmpty(input.accounting_standard, "accounting_standard"),
+    entity_type: requireNonEmpty(input.entity_type, "entity_type"),
     timezone: requireNonEmpty(input.timezone, "timezone"),
   });
 }
 
 export function createTaxProfile(input: TaxProfile): TaxProfile {
-  const effectiveFrom = requireIsoDate(input.effectiveFrom, "effectiveFrom");
-  const effectiveTo = input.effectiveTo === undefined ? undefined : requireIsoDate(input.effectiveTo, "effectiveTo");
-
-  if (effectiveTo !== undefined && effectiveTo < effectiveFrom) {
-    throw new DomainValidationError("INVALID_SCHEMA", "effectiveTo must not be before effectiveFrom", "effectiveTo");
+  if (input.effective_to !== undefined) {
+    assertDateNotBefore(input.effective_from, input.effective_to, "effective_to");
   }
 
   return Object.freeze({
     ...input,
-    jurisdiction: requireNonEmpty(input.jurisdiction, "jurisdiction"),
     status: requireNonEmpty(input.status, "status"),
-    effectiveFrom,
-    effectiveTo,
+    ...(input.configuration_ref === undefined
+      ? {}
+      : { configuration_ref: requireNonEmpty(input.configuration_ref, "configuration_ref") }),
   });
 }

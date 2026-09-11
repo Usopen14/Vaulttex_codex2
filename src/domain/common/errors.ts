@@ -1,39 +1,46 @@
-export class DomainValidationError extends Error {
-  readonly code: string;
-  readonly field?: string;
+export type WendyErrorCode =
+  | "INVALID_SCHEMA"
+  | "SOURCE_MISSING"
+  | "DUPLICATE_SOURCE"
+  | "DUPLICATE_EVENT"
+  | "CLASSIFICATION_UNCERTAIN"
+  | "REVIEW_REQUIRED"
+  | "RULE_VIOLATION"
+  | "ACCOUNT_NOT_FOUND"
+  | "TAX_PROFILE_MISSING"
+  | "PERIOD_CLOSED"
+  | "PERIOD_LOCKED"
+  | "JOURNAL_UNBALANCED"
+  | "LEDGER_POST_FAILED"
+  | "RECONCILIATION_CONFLICT"
+  | "IDEMPOTENCY_CONFLICT"
+  | "STALE_FINANCIAL_STATE"
+  | "EVENT_SEMANTICS_UNSUPPORTED"
+  | "INTERNAL_ERROR";
 
-  constructor(code: string, message: string, field?: string) {
+export type WendyErrorSeverity = "WARNING" | "REVIEW" | "BLOCKING" | "SYSTEM";
+
+export class WendyDomainError extends Error {
+  readonly error_code: WendyErrorCode;
+  readonly field?: string;
+  readonly rule_id?: string;
+
+  constructor(
+    error_code: WendyErrorCode,
+    message: string,
+    options: { field?: string; rule_id?: string } = {},
+  ) {
     super(message);
-    this.name = "DomainValidationError";
-    this.code = code;
-    this.field = field;
+    this.name = "WendyDomainError";
+    this.error_code = error_code;
+    if (options.field !== undefined) this.field = options.field;
+    if (options.rule_id !== undefined) this.rule_id = options.rule_id;
   }
 }
 
 export function requireNonEmpty(value: string, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
-    throw new DomainValidationError("INVALID_SCHEMA", `${field} is required`, field);
-  }
-
-  return value;
-}
-
-export function requireIsoDate(value: string, field: string): string {
-  requireNonEmpty(value, field);
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (match === null) {
-    throw new DomainValidationError("INVALID_SCHEMA", `${field} must use YYYY-MM-DD`, field);
-  }
-
-  const [year, month, day] = match.slice(1).map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    throw new DomainValidationError("INVALID_SCHEMA", `${field} must be a real calendar date`, field);
+    throw new WendyDomainError("INVALID_SCHEMA", `${field} is required`, { field });
   }
 
   return value;
@@ -41,7 +48,15 @@ export function requireIsoDate(value: string, field: string): string {
 
 export function requirePositiveInteger(value: number, field: string): number {
   if (!Number.isSafeInteger(value) || value < 1) {
-    throw new DomainValidationError("INVALID_SCHEMA", `${field} must be a positive safe integer`, field);
+    throw new WendyDomainError("INVALID_SCHEMA", `${field} must be a positive safe integer`, { field });
+  }
+
+  return value;
+}
+
+export function requireArrayNotEmpty<T>(value: readonly T[], field: string): readonly T[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new WendyDomainError("INVALID_SCHEMA", `${field} must contain at least one item`, { field });
   }
 
   return value;

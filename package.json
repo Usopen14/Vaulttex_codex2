@@ -5,9 +5,15 @@
   "description": "Wendy M1 provider-neutral domain contracts",
   "type": "module",
   "scripts": {
-    "test": "node --experimental-strip-types --test test/*.test.ts"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "verify": "npm run typecheck && npm test"
   },
   "engines": {
     "node": ">=25"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "typescript": "^7.0.2"
   }
 }

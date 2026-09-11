@@ -1,21 +1,22 @@
-import { DomainValidationError, requireIsoDate, requireNonEmpty } from "../common/errors.ts";
-import type { OrganizationId, RuleSetId, RuleVersionId } from "../common/ids.ts";
+import { WendyDomainError, requireNonEmpty } from "../common/errors.ts";
+import type { OrganizationId, RuleId, RuleSetId, RuleVersion } from "../common/ids.ts";
+import { assertDateNotBefore, type IsoDate } from "../common/time.ts";
 
 export interface RuleSet {
-  readonly ruleSetId: RuleSetId;
-  readonly organizationId: OrganizationId;
+  readonly rule_set_id: RuleSetId;
+  readonly organization_id: OrganizationId;
   readonly domain: string;
   readonly status: string;
 }
 
-export interface RuleVersion {
-  readonly ruleVersionId: RuleVersionId;
-  readonly ruleSetId: RuleSetId;
-  readonly version: string;
-  readonly effectiveFrom: string;
-  readonly effectiveTo?: string;
-  readonly logicRef: string;
-  readonly changeReason: string;
+export interface VersionedRule {
+  readonly rule_id: RuleId;
+  readonly rule_set_id: RuleSetId;
+  readonly rule_version: RuleVersion;
+  readonly effective_from: IsoDate;
+  readonly effective_to?: IsoDate;
+  readonly logic_ref: string;
+  readonly change_reason: string;
 }
 
 export function createRuleSet(input: RuleSet): RuleSet {
@@ -26,26 +27,20 @@ export function createRuleSet(input: RuleSet): RuleSet {
   });
 }
 
-export function createRuleVersion(input: RuleVersion): RuleVersion {
-  const effectiveFrom = requireIsoDate(input.effectiveFrom, "effectiveFrom");
-  const effectiveTo = input.effectiveTo === undefined ? undefined : requireIsoDate(input.effectiveTo, "effectiveTo");
-
-  if (effectiveTo !== undefined && effectiveTo < effectiveFrom) {
-    throw new DomainValidationError("INVALID_SCHEMA", "effectiveTo must not be before effectiveFrom", "effectiveTo");
+export function createVersionedRule(input: VersionedRule): VersionedRule {
+  if (input.effective_to !== undefined) {
+    assertDateNotBefore(input.effective_from, input.effective_to, "effective_to");
   }
 
   return Object.freeze({
     ...input,
-    version: requireNonEmpty(input.version, "version"),
-    logicRef: requireNonEmpty(input.logicRef, "logicRef"),
-    changeReason: requireNonEmpty(input.changeReason, "changeReason"),
-    effectiveFrom,
-    effectiveTo,
+    logic_ref: requireNonEmpty(input.logic_ref, "logic_ref"),
+    change_reason: requireNonEmpty(input.change_reason, "change_reason"),
   });
 }
 
-export function assertRuleVersionBelongsTo(ruleVersion: RuleVersion, ruleSet: RuleSet): void {
-  if (ruleVersion.ruleSetId !== ruleSet.ruleSetId) {
-    throw new DomainValidationError("RULE_VIOLATION", "rule version must belong to its rule set", "ruleSetId");
+export function assertRuleBelongsTo(rule: VersionedRule, rule_set: RuleSet): void {
+  if (rule.rule_set_id !== rule_set.rule_set_id) {
+    throw new WendyDomainError("RULE_VIOLATION", "rule must belong to its rule_set", { field: "rule_set_id" });
   }
 }
