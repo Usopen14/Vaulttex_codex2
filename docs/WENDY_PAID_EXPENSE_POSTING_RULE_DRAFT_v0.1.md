@@ -9,6 +9,8 @@
 **Product Owner approver:** Product Owner
 **Accounting approver:** `PENDING/TBD`
 **Product Owner decision date:** 2026-09-11
+**Product Owner SOD clarification date:** 2026-09-13
+**Product Owner Policy decision-register approval date:** 2026-09-13
 **Accounting decision date:** `PENDING/TBD`
 **M2 authorization gate:** `NOT READY`
 
@@ -25,6 +27,8 @@ PaymentMade --FULFILLS--> ExpenseRecognized
 No unresolved item below becomes policy merely by appearing in this draft. Until the required approvals are recorded, the rule MUST NOT construct a journal, select an account, obtain posting permission, or write to the Ledger.
 
 **Product Owner approval evidence:** Product Owner PAID_EXPENSE M2-entry decision supplied in this Codex task on 2026-09-11. This approves only the Product Owner decisions in §2; it does not approve Accounting decisions, Engineering contracts, an immutable rule version, or M2 implementation.
+
+**Product Owner Policy evidence:** Product Owner decision supplied in this Codex task on 2026-09-13. It approves P-01 through P-06: capability/SOD, independent approver, review boundary, period escalation, and Period authorization policy. It does not approve Accounting semantics or an Engineering Freeze.
 
 Decision labels:
 
@@ -54,6 +58,19 @@ Decision labels:
 
 Product Owner review is complete for the M2-entry scope, routing semantics, fail-closed rule, and canonical outcomes. An unposted event MUST NOT be presented as a Ledger posting.
 
+### 2.2 Approved self-approval and period constraints
+
+- `USER_CONFIRM` may be performed by the originating user because it confirms source/business facts only; it is not accounting, tax, period-override, correction/reversal, or Ledger-posting approval.
+- For elevated `ACCOUNTANT_OR_ADMIN_APPROVAL`, originator self-approval is prohibited by default when an eligible independent Owner/Admin/Accountant approver exists.
+- `OWNER_OVERRIDE` is an exceptional control mechanism/audit metadata under `ACCOUNTANT_OR_ADMIN_APPROVAL`, never a fourth `approval_level`. It requires explicit organization-policy enablement, authorized Owner role, no independent eligible approver, explicit action/reason, and full audit evidence.
+- Owner Override never bypasses authorization failure, invalid/unbalanced journals, unsupported currency, missing required mappings, Ledger invariants, idempotency conflict, immutable posted history, LOCKED period, or any non-overridable control.
+- OPEN may post only after all required controls pass. CLOSED normal posting is denied without automatic date shifting. LOCKED posting is denied; Owner Override never unlocks it and M2 has no automatic reopen.
+- The Ledger Posting Service remains the only system authority that may create a posted Ledger record.
+- Authorized `OWNER`, `ADMIN`, `ACCOUNTANT`, and permitted `MEMBER`/`USER` may submit; originating authorized users may `USER_CONFIRM`; elevated approval is restricted to authorized Owner/Admin/Accountant subject to capability and SOD checks.
+- The future Period authorization boundary uses `POSTING_ALLOWED`, `PERIOD_DENIED`, or `REVIEW_REQUIRED`; only `POSTING_ALLOWED` is posting eligibility. Period Engine never posts Ledger.
+
+P-01 through P-06 are Product Owner-approved for the M2 policy boundary. Exact DTO/schema, capability storage, service enforcement, and all Ledger mechanics remain Engineering Freeze work. Accounting decisions remain pending.
+
 ## 3. Accounting decisions requiring explicit approval
 
 Accounting owns final GL mapping, debit/credit semantics, balancing, and correction behavior. None of these rows authorizes an implementation until Accounting approval is recorded.
@@ -72,7 +89,7 @@ Accounting owns final GL mapping, debit/credit semantics, balancing, and correct
 Accounting must explicitly approve or reject each question below; this draft supplies no answer.
 
 1. **Debit/credit treatment:** What are the permitted debit and credit semantics for the sole supported event pair, and what account eligibility must be checked before construction?
-2. **Category resolution:** What versioned organization-scoped mapping resolves each supported `expense_category`, how is a mapping made effective-dated, and when does an ambiguity route to `REVIEW_REQUIRED` rather than `REJECTED`?
+2. **Category resolution:** What versioned organization-scoped mapping resolves each supported `expense_category`, how is a mapping made effective-dated, and how does remediation preserve the Product Owner routing boundary: plausible unresolved category → `REVIEW_REQUIRED`; hard-invalid request → `REJECTED`?
 3. **Payment-source resolution:** What versioned mapping resolves a `payment_source_ref` to exactly one active postable Cash/Bank account, including Cash on Hand and organization CUSTOM bank accounts?
 4. **Posting date:** Which explicit event date is proposed to the Period Engine, how is the organization timezone applied, and what happens for late events or a period denial/escalation?
 5. **Balancing and correction:** What balanced-result invariant applies, and how are journal-level correction/reversal records linked to immutable event correction relationships without rewriting history?
@@ -89,11 +106,37 @@ Engineering must implement only the contract that Product Owner and Accounting a
 | Period Engine authorization | The Period Engine alone grants/denies posting permission. An AccountingPeriod status is not itself authorization. | `REQUIRES_FORMAL_DECISION` | Define the request/response contract, target date/period inputs, authorization reference, expiry/version behavior, and denial handling. |
 | Atomic/idempotent Ledger posting | The future Ledger Posting Service owns an atomic post and provenance boundary; M1 contains no Ledger write. | `REQUIRES_FORMAL_DECISION` | Define transaction boundary, journal/result identity, exactly-once retry semantics, storage/provenance/audit writes, failure rollback, concurrency behavior, and response contract. |
 
+### 4.1 M2 approval freeze register
+
+The following is the complete pre-implementation freeze register for the approved PAID_EXPENSE vertical slice. Product Owner policy inputs for rows 8–9 are approved, but no Engineering contract is frozen and no row authorizes code until its listed owner completes the required work.
+
+Supporting approval packs:
+
+- `WENDY_PAID_EXPENSE_ACCOUNTING_APPROVAL_PACK_v0.1.md` — Accounting decisions 1–5.
+- `WENDY_PAID_EXPENSE_POLICY_APPROVAL_PACK_v0.1.md` — authorization, segregation, Period, and escalation policy inputs.
+- `WENDY_PAID_EXPENSE_ENGINEERING_CONTRACT_FREEZE_DRAFT_v0.1.md` — Engineering decisions 6–10 after Accounting/Policy inputs are approved.
+- `WENDY_M2_DECISION_REGISTER_v0.1.md` — decision-ready proposals, alternatives, approvers, and Engineering dependencies; it does not approve or freeze any decision.
+
+| # | Decision to freeze | Approval owner | State |
+|---|---|---|---|
+| 1 | Debit / credit semantics | Accounting | `PENDING/TBD` |
+| 2 | Category-to-account resolution | Accounting | `PENDING/TBD` |
+| 3 | Payment-source-to-account resolution | Accounting | `PENDING/TBD` |
+| 4 | Posting-date semantics | Accounting | `PENDING/TBD` |
+| 5 | Correction / reversal behavior | Accounting | `PENDING/TBD` |
+| 6 | Posting idempotency scope | Engineering | `PENDING/TBD` |
+| 7 | Event fingerprint canonicalization | Engineering | `PENDING/TBD` |
+| 8 | Authorization / segregation-of-duties policy | Engineering, using approved Product policy and pending Accounting semantics | `PRODUCT_POLICY_APPROVED; ENGINEERING_FREEZE_PENDING` |
+| 9 | Period Engine posting-authorization contract | Engineering, using approved Product policy and pending A-04 accounting-date semantics | `PRODUCT_POLICY_APPROVED; ENGINEERING_FREEZE_PENDING` |
+| 10 | Atomic/idempotent Ledger-posting contract | Engineering | `PENDING/TBD` |
+
+Unknown or unresolved mappings are `REVIEW_REQUIRED` or otherwise fail closed according to the Product Owner-approved routing semantics; they never select Suspense, Miscellaneous Expense, or a guessed account/tax treatment.
+
 ## 5. Required review evidence and acceptance criteria
 
 Before the status can change from `DRAFT/PENDING`, the reviewers must record an approval or rejection for every `REQUIRES_FORMAL_DECISION` row above. A complete approval package must include:
 
-1. Recorded Product Owner approval evidence for the M2-entry scope, routing semantics, fail-closed behavior, and canonical outcomes.
+1. Recorded Product Owner approval evidence for the M2-entry scope, routing semantics, fail-closed behavior, canonical outcomes, and P-01 through P-06 policy boundary.
 2. Accounting decision for debit/credit semantics, versioned category and payment-source mappings, posting-date meaning, balancing, and correction behavior.
 3. Engineering contract decision for idempotency, fingerprint canonicalization, authorization/SOD, Period Engine authorization, and atomic Ledger behavior.
 4. Named Accounting approver, decision date, approved immutable rule version, and immutable approval evidence reference.
@@ -104,7 +147,7 @@ Before the status can change from `DRAFT/PENDING`, the reviewers must record an 
 M2 MUST NOT be marked `READY / AUTHORIZED` until all items below have an approved decision and evidence.
 
 1. **Accounting rule semantics:** debit/credit treatment; category-to-account mapping policy; payment-source-to-account mapping policy; posting-date semantics; balancing and journal correction/reversal policy.
-2. **Engineering execution contract:** posting idempotency scope; exact fingerprint canonicalization; server authorization/SOD; Period Engine authorization API/semantics; atomic/idempotent Ledger posting and rollback/provenance guarantees.
+2. **Engineering execution contract:** posting idempotency scope; exact fingerprint canonicalization; server enforcement of the approved authorization/SOD policy; Period Engine DTO/semantics consistent with P-06; atomic/idempotent Ledger posting and rollback/provenance guarantees.
 3. **Accounting approval evidence:** named Accounting approver, approval date, immutable evidence reference, and an approved immutable rule version that incorporates the Product Owner-approved M2-entry semantics.
 4. **Approved acceptance tests:** the agreed contract/invariant suite for the Accounting and Engineering decisions, including the Product Owner-approved fail-closed and routing behavior.
 
