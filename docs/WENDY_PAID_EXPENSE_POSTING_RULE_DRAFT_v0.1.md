@@ -4,7 +4,7 @@
 **Engine:** Wendy
 **Rule ID:** `PAID_EXPENSE`
 **Draft rule version:** `0.1.0-draft`
-**Status:** `DRAFT/PENDING_ENGINEERING_FREEZE` — Product Owner and Accounting decisions approved; Engineering decisions remain pending
+**Status:** `HISTORICAL_ENTRY_REVIEW_DRAFT — SUPERSEDED_BY_APPROVED_RULE_AND_ENGINEERING_BUNDLE`
 **Review owners:** Product Owner and Accounting
 **Product Owner approver:** Product Owner
 **Accounting approver:** Wongsa วงศาโรตน์
@@ -13,11 +13,11 @@
 **Product Owner Policy decision-register approval date:** 2026-09-13
 **Accounting decision date:** 13 Sep 2026
 **Accounting Rule:** `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md` (`PAID_EXPENSE v1`)
-**M2 authorization gate:** `NOT READY`
+**M2 authorization gate:** `READY / AUTHORIZED` — `M2-IMPLEMENTATION-AUTH-v1.0`
 
 ## 1. Purpose, authority, and review rule
 
-M1 is formally closed and accepted. This document prepares only the formal M2 entry review for the future `PAID_EXPENSE` posting rule. It does not alter M1 behavior and does not implement accounting, period, or Ledger code.
+M1 is formally closed and accepted. This document prepared the formal M2 entry review for the `PAID_EXPENSE` posting rule. Its pre-freeze decision rows are historical; the current governing artifacts are `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md`, the accepted Engineering bundle, and `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md`. It does not alter M1 behavior or implement accounting, period, or Ledger code.
 
 `ExpenseRecognized` and `PaymentMade` remain two distinct Financial Events. In the supported first slice their canonical relationship is:
 
@@ -25,7 +25,7 @@ M1 is formally closed and accepted. This document prepares only the formal M2 en
 PaymentMade --FULFILLS--> ExpenseRecognized
 ```
 
-No unresolved item below becomes policy merely by appearing in this draft. Until the required approvals are recorded, the rule MUST NOT construct a journal, select an account, obtain posting permission, or write to the Ledger.
+Historical status note: no unresolved item below became policy merely by appearing in this draft. Its prior pre-freeze states do not supersede the approved Accounting Rule, accepted Engineering bundle, or M2 authorization. This document itself does not construct a journal, select an account, obtain posting permission, or write to the Ledger.
 
 **Product Owner approval evidence:** Product Owner PAID_EXPENSE M2-entry decision supplied in this Codex task on 2026-09-11. This approves only the Product Owner decisions in §2; it does not approve Accounting decisions, Engineering contracts, an immutable rule version, or M2 implementation.
 

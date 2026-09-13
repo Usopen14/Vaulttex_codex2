@@ -38,7 +38,7 @@ The Product Owner-approved `OWNER_OVERRIDE` is an elevated approval mechanism on
 
 ## 3. Accounting finalization record
 
-The following decisions are finalized Accounting semantics. They remain no authority to construct a JournalDraft until Engineering completes its separate Contract Freeze.
+The following decisions are finalized Accounting semantics. The separate Engineering Contract Freeze is accepted; this pack remains Accounting evidence only and does not itself authorize a JournalDraft or Ledger posting.
 
 | Decision | Finalized Accounting semantic | Accounting decision | Approver | Decision date | Evidence reference | Immutable rule version | Recorded reason / modification |
 |---|---|---|---|---|---|---|---|
@@ -138,4 +138,4 @@ The Product Owner routing decision determines whether an unresolved, plausible c
 
 All five A decisions are recorded as `APPROVE` in the received reconfirmation evidence. The one immutable normative artifact is `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md`, with source document SHA-256 `6ba878997420328f91bc0de32d72529c99ca93f5b5da6413fbb43f5473dd9967` and evidence reference กยศ-123.
 
-The Accounting Gate is `COMPLETE`. M2 remains `NOT READY / NOT AUTHORIZED` until Engineering completes the separate Contract Freeze and its required tests/evidence.
+The Accounting Gate is `COMPLETE`. The separate Engineering Contract Freeze and T-01 Gate are complete, and Product Owner implementation authorization is recorded in `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md`; M2 is `READY / AUTHORIZED` and implementation has not started.

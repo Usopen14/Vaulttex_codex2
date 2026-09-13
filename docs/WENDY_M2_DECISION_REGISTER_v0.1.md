@@ -2,7 +2,7 @@
 
 **Product:** Vault
 **Engine:** Wendy
-**Status:** `DECISION_READY — M2 NOT READY / NOT AUTHORIZED`
+**Status:** `M2 READY / AUTHORIZED — IMPLEMENTATION NOT STARTED`
 **Scope:** Approved THB Cash/Bank paid-expense vertical slice only
 **Product Owner / Policy approval date:** 2026-09-13 for P-01 through P-06
 **Accounting approval date:** 13 Sep 2026 for A-01 through A-05
@@ -10,7 +10,7 @@
 
 ## 1. How to use this register
 
-This is a decision register, not M2 code or a frozen Engineering contract. A-01 through A-05 are finalized by the immutable Accounting Rule `PAID_EXPENSE v1`; P-01 through P-06 record the Product Owner-approved M2 policy boundary. Their future DTO, storage, and service details still require Engineering Freeze.
+This is a decision register, not M2 code. A-01 through A-05 are finalized by the immutable Accounting Rule `PAID_EXPENSE v1`; P-01 through P-06 record the Product Owner-approved M2 policy boundary. The implementation DTO, storage, and service contracts are frozen and accepted in the Engineering bundle referenced by the M2 authorization record.
 
 The register preserves these existing constraints:
 
@@ -211,11 +211,11 @@ All five are `APPROVE` in the received Accounting reconfirmation evidence and ar
 - P-04 constrains remediation of finalized A-02/A-03 mappings through the review/audit boundary.
 - P-05/P-06 constrain the finalized A-04 accounting-date semantics supplied to the Period authority.
 
-This coordination does not change P-01 through P-06 back to pending. The exact Period DTO and all service mechanics remain Engineering Freeze work.
+This coordination does not change P-01 through P-06. The exact Period DTO and service mechanics are frozen in the accepted Engineering Contract bundle.
 
 ### 5.4 Engineering-only decisions after policy approval
 
-With A-01 through A-05 finalized, Engineering may begin the separate Contract Freeze preparation consistent with the already-approved P-01 through P-06 policy boundary for:
+With A-01 through A-05 finalized, the following Engineering decisions were frozen consistently with the already-approved P-01 through P-06 policy boundary:
 
 - exact DTO field names, schema versions, and error serialization;
 - fingerprint encoding/hash algorithm after approved equivalence inputs are known;
@@ -224,9 +224,9 @@ With A-01 through A-05 finalized, Engineering may begin the separate Contract Fr
 - retry, timeout, recovery, and rollback mechanics; and
 - test harness design for contract, invariant, concurrency, and authorization tests.
 
-These technical choices still require Engineering freeze evidence, but do not reopen approved accounting or policy meaning.
+These technical choices are accepted by the Engineering owner and do not reopen approved Accounting or Policy meaning.
 
-## 6. Accounting Gate conclusion for Engineering Contract Freeze entry
+## 6. M2 entry-gate conclusion
 
 The Accounting and Product/Policy decision prerequisites are complete:
 
@@ -236,4 +236,18 @@ The Accounting and Product/Policy decision prerequisites are complete:
 4. P-01 through P-06 Product Owner approval evidence is retained with the policy/rule version it governs; this evidence is recorded on 2026-09-13.
 5. Accounting approval records approver, role, date, evidence reference, source hash, decision references, and immutable Rule `PAID_EXPENSE v1`.
 
-Engineering Contract Freeze has not started in this update. M2 remains `NOT READY / NOT AUTHORIZED` until the separate Engineering Freeze and its required evidence are completed.
+The Engineering Contract Freeze and T-01 Gate are complete and accepted. The Product Owner implementation authorization is recorded in `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md`; M2 is `READY / AUTHORIZED` and implementation has not started.
+
+## 7. M2 implementation authorization record
+
+| Evidence field | Recorded value |
+|---|---|
+| Decision | `AUTHORIZE` |
+| Product Owner | `Dr. Masato` |
+| Role | `Product Owner / CEO` |
+| Decision date | `13 Sep 2026` |
+| Evidence reference | `M2-IMPLEMENTATION-AUTH-v1.0` |
+| Authorization scope | Frozen `PAID_EXPENSE v1` vertical slice only |
+| Full entry-gate evidence | `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md` |
+
+This record authorizes implementation only. It does not authorize a scope expansion, an override of case-specific controls, or any change to immutable or frozen normative contracts.

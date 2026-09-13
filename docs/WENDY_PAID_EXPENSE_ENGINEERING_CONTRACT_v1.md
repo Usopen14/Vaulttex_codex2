@@ -2,7 +2,7 @@
 
 **Product:** Vault
 **Engine:** Wendy
-**Contract status:** `ENGINEERING_CONTRACTS_FROZEN_FOR_REVIEW — ENGINEERING_GATE_ACCEPTANCE_PENDING — IMPLEMENTATION NOT AUTHORIZED`
+**Contract status:** `ENGINEERING_FREEZE_ACCEPTED — T-01 COMPLETE — M2 READY / AUTHORIZED — IMPLEMENTATION NOT STARTED`
 **Contract version:** `wendy.paid-expense.engineering-contract/1.0.0`
 **Scope:** the approved THB, same-settlement `PAID_EXPENSE` vertical slice only
 **Accounting source (immutable):** [`WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md`](WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md), `rule_id: PAID_EXPENSE`, `immutable_rule_version: v1`
@@ -304,7 +304,7 @@ For the M2 correction operation, reversal and replacement commit together or not
 
 ## 12. Release-blocking acceptance tests
 
-The full non-production test contract is [`WENDY_PAID_EXPENSE_TEST_CONTRACT_v1.md`](WENDY_PAID_EXPENSE_TEST_CONTRACT_v1.md). It is required before implementation approval and covers balance, mapping, organization scope, authorization/SOD, Period behavior, duplicate/idempotency/concurrency, atomic rollback, correction traceability, immutability, and the authoritative-tax-impact boundary. The approval-ready interim T-01 gate and its exact outcomes are defined in [`WENDY_PAID_EXPENSE_TAX_IMPACT_ELIGIBILITY_GATE_v0.1.md`](WENDY_PAID_EXPENSE_TAX_IMPACT_ELIGIBILITY_GATE_v0.1.md); that document is pending Product and Accounting approval and does not alter Accounting Rule v1.
+The full non-production test contract is [`WENDY_PAID_EXPENSE_TEST_CONTRACT_v1.md`](WENDY_PAID_EXPENSE_TEST_CONTRACT_v1.md). It is required before implementation approval and covers balance, mapping, organization scope, authorization/SOD, Period behavior, duplicate/idempotency/concurrency, atomic rollback, correction traceability, immutability, and the authoritative-tax-impact boundary. The interim T-01 gate and its exact outcomes are defined in [`WENDY_PAID_EXPENSE_TAX_IMPACT_ELIGIBILITY_GATE_v0.1.md`](WENDY_PAID_EXPENSE_TAX_IMPACT_ELIGIBILITY_GATE_v0.1.md); its Product Owner and Accounting approvals are recorded there and it does not alter Accounting Rule v1.
 
 ## 13. Freeze decisions and remaining boundary
 
@@ -313,33 +313,31 @@ The full non-production test contract is [`WENDY_PAID_EXPENSE_TEST_CONTRACT_v1.m
 | Accounting semantics | `CONSUMED_IMMUTABLE` | `PAID_EXPENSE v1` only; this document does not alter it. |
 | Product/Policy SOD and Period policy | `CONSUMED_APPROVED` | P-01 through P-06 are expressed in DTO/audit/invariant form. |
 | Fingerprint/idempotency/atomicity/concurrency/retry | `FROZEN` | Versioned technical contracts in this document and its two companions. |
-| T-01 tax-impact eligibility authority | `PENDING_ACCOUNTING_AND_PRODUCT_APPROVAL` | The approval-ready interim decision contract uses `NO_SEPARATE_ACCOUNTING_IMPACT_CONFIRMED`, `SEPARATE_ACCOUNTING_IMPACT_REQUIRED`, and `UNRESOLVED`. It is Accounting-controlled, evidence-backed, exact-event/rule bound, and fail-closed. No Tax Engine/classifier or authoritative tax policy is implemented in M2. |
+| T-01 tax-impact eligibility authority | `COMPLETE` | Product Owner and Accounting approvals are recorded for the interim decision contract, including reviewer capability, evidence standard, outcome semantics, immutability, provenance, and fail-closed behavior. No Tax Engine/classifier or authoritative tax policy is implemented in M2. |
 
-The pending T-01 decision does not permit a workaround, guess, or silent simple posting. It is the identified cross-domain readiness blocker; it is not approved here because doing so would invent Accounting/Product policy.
+T-01 completion does not permit a workaround, guess, or silent simple posting. A valid matching `NO_SEPARATE_ACCOUNTING_IMPACT_CONFIRMED` decision remains only one required input to the other M2 controls.
 
 ## 14. M2 authorization status
 
-The technical-contract preparation is complete: the immutable Accounting Rule, approved Product/Policy boundary, deterministic technical contracts, DTO schemas, and release-blocking test contract are frozen for review. The **formal Engineering Freeze gate is not yet complete** because no named Engineering owner or durable Engineering acceptance evidence was supplied. This document does **not** mark M2 `READY / AUTHORIZED` and does not authorize any code, migration, JournalDraft construction, Period service, or Ledger write.
+The technical-contract preparation is complete: the immutable Accounting Rule, approved Product/Policy boundary, deterministic technical contracts, DTO schemas, and release-blocking test contract are frozen. The **formal Engineering Freeze gate is complete**: the Engineering owner acceptance recorded in §15 applies to this bundle.
 
-M2 may be marked `READY / AUTHORIZED` only when:
-
-1. T-01 is approved by the required Accounting and Product authorities, including an authorized Accounting-reviewer capability/evidence policy, and the post consumes only an exact matching `NO_SEPARATE_ACCOUNTING_IMPACT_CONFIRMED` decision;
-2. the frozen contract and test contract are accepted by a named authorized Engineering owner, with decision date and durable evidence reference; and
-3. an explicit M2 implementation authorization is recorded.
+The Product Owner implementation authorization in `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md` marks M2 `READY / AUTHORIZED`; implementation has not started. Authorization is limited to the frozen scope and requires every runtime control to pass. A future post must consume only an exact matching `NO_SEPARATE_ACCOUNTING_IMPACT_CONFIRMED` decision and all other frozen M2 controls.
 
 ## 15. Formal Engineering acceptance record
 
-**Acceptance status:** `PENDING_ENGINEERING_OWNER_ACCEPTANCE`
+**Acceptance status:** `ACCEPTED`
 
 | Evidence field | Recorded value |
 |---|---|
-| Engineering owner | `PENDING/TBD` |
-| Role | `PENDING/TBD` |
-| Decision | `PENDING/TBD` — permitted values: `ACCEPT`, `ACCEPT_WITH_REQUIRED_CHANGE`, `REJECT` |
-| Decision date | `PENDING/TBD` |
-| Evidence reference | `PENDING/TBD` |
-| Accepted contract version | `PENDING/TBD` — must equal `wendy.paid-expense.engineering-contract/1.0.0` |
-| Accepted DTO bundle version | `PENDING/TBD` — must equal `wendy.paid-expense.dto/1.0.0` |
-| Accepted test-contract version | `PENDING/TBD` — must equal `wendy.paid-expense.acceptance-tests/1.0.0` |
+| Engineering owner | `Dr. Masato` |
+| Role | `Engineering Owner, CEO` |
+| Decision | `ACCEPT` |
+| Decision date | `13 Sep 2026` |
+| Evidence reference | `M2 1.0.0` |
+| Accepted contract version | `wendy.paid-expense.engineering-contract/1.0.0` |
+| Accepted DTO bundle version | `wendy.paid-expense.dto/1.0.0` |
+| Accepted test-contract version | `wendy.paid-expense.acceptance-tests/1.0.0` |
+| Accounting source reviewed | `PAID_EXPENSE / immutable rule v1` |
+| T-01 acknowledgement | Reviewed as an external M2 readiness dependency. This acceptance does not approve T-01 and does not replace the required Product + Accounting approval for T-01. |
 
-The named Engineering owner must explicitly accept fingerprint canonicalization, idempotency and exactly-once effect, authorization/SOD, Period authorization, JournalDraft, serializable atomic Ledger posting, database uniqueness/concurrency, retry/`UNKNOWN_OUTCOME`, rollback, exact reversal/correction, and the release-blocking test contract. `ACCEPT_WITH_REQUIRED_CHANGE` is not acceptance until the required change is incorporated into a new/revised contract version and explicitly accepted. Codex is not, and must never be recorded as, the Engineering owner or approver.
+The recorded `ACCEPT` covers fingerprint canonicalization, idempotency and exactly-once effect, authorization/SOD, Period authorization, JournalDraft, serializable atomic Ledger posting, database uniqueness/concurrency, retry/`UNKNOWN_OUTCOME`, rollback, exact reversal/correction, and the release-blocking test contract. Codex is not recorded as the Engineering owner or approver.

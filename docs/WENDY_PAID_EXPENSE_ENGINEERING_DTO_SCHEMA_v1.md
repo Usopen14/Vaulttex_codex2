@@ -1,6 +1,6 @@
 # PAID_EXPENSE Engineering DTO / Schema Contract v1
 
-**Status:** `FROZEN_NON_PRODUCTION — IMPLEMENTATION NOT AUTHORIZED`
+**Status:** `FROZEN_NON_PRODUCTION — M2 READY / AUTHORIZED — IMPLEMENTATION NOT STARTED`
 **Schema bundle version:** `wendy.paid-expense.dto/1.0.0`
 **Parent contract:** [`WENDY_PAID_EXPENSE_ENGINEERING_CONTRACT_v1.md`](WENDY_PAID_EXPENSE_ENGINEERING_CONTRACT_v1.md)
 **Immutable Accounting input:** `PAID_EXPENSE v1`
@@ -317,17 +317,19 @@ CorrectionCase:
 
 ## 8. Formal Engineering acceptance record
 
-**Acceptance status:** `PENDING_ENGINEERING_OWNER_ACCEPTANCE`
+**Acceptance status:** `ACCEPTED`
 
 | Evidence field | Recorded value |
 |---|---|
-| Engineering owner | `PENDING/TBD` |
-| Role | `PENDING/TBD` |
-| Decision | `PENDING/TBD` — permitted values: `ACCEPT`, `ACCEPT_WITH_REQUIRED_CHANGE`, `REJECT` |
-| Decision date | `PENDING/TBD` |
-| Evidence reference | `PENDING/TBD` |
-| Accepted contract version | `PENDING/TBD` — must equal `wendy.paid-expense.engineering-contract/1.0.0` |
-| Accepted DTO bundle version | `PENDING/TBD` — must equal `wendy.paid-expense.dto/1.0.0` |
-| Accepted test-contract version | `PENDING/TBD` — must equal `wendy.paid-expense.acceptance-tests/1.0.0` |
+| Engineering owner | `Dr. Masato` |
+| Role | `Engineering Owner, CEO` |
+| Decision | `ACCEPT` |
+| Decision date | `13 Sep 2026` |
+| Evidence reference | `M2 1.0.0` |
+| Accepted contract version | `wendy.paid-expense.engineering-contract/1.0.0` |
+| Accepted DTO bundle version | `wendy.paid-expense.dto/1.0.0` |
+| Accepted test-contract version | `wendy.paid-expense.acceptance-tests/1.0.0` |
+| Accounting source reviewed | `PAID_EXPENSE / immutable rule v1` |
+| T-01 acknowledgement | Reviewed as an external M2 readiness dependency. This acceptance does not approve T-01 and does not replace the required Product + Accounting approval for T-01. |
 
 This evidence must explicitly cover the authorization/SOD, Period, mapping, tax-impact eligibility, JournalDraft, PostingResult, and correction DTO contracts as part of the Engineering acceptance bundle. Codex must not be recorded as the owner or approver.

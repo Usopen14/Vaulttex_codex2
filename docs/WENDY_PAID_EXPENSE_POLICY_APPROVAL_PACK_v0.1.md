@@ -2,12 +2,13 @@
 
 **Product:** Vault
 **Engine:** Wendy
-**Status:** `APPROVED_BY_PRODUCT_OWNER_FOR_M2_POLICY_BOUNDARY` — Accounting approval and Engineering Freeze remain pending
+**Status:** `APPROVED_BY_PRODUCT_OWNER_FOR_M2_POLICY_BOUNDARY — CONSUMED_BY_M2_AUTHORIZATION`
 **Scope:** Authorization, segregation of duties, Period posting authority, and escalation policy for the approved PAID_EXPENSE M2-entry slice
 **Product Owner policy approval evidence:** Product Owner decision supplied in this Codex task on 2026-09-13
 **Product Owner policy decision date:** 2026-09-13
-**Accounting approval:** `PENDING_ACCOUNTING_APPROVAL`
-**Engineering Freeze:** `PENDING`
+**Accounting approval:** `COMPLETE`
+**Engineering Freeze:** `COMPLETE / ACCEPTED`
+**M2 authorization:** `READY / AUTHORIZED` — `M2-IMPLEMENTATION-AUTH-v1.0`
 
 ## 1. Purpose and authority boundary
 
@@ -100,4 +101,4 @@ Unknown account or tax treatment never receives a guessed value. A policy may no
 
 Product Owner approval evidence is the Product Owner decision supplied in this Codex task on 2026-09-13. It approves P-01 through P-06 for the M2 policy boundary. This record does not approve any Accounting decision, exact Engineering DTO/schema, idempotency/fingerprint/atomic-posting contract, M2 code, Period reopening, or Ledger posting.
 
-The remaining M2 gate is not a Policy-approval blocker: A-01 through A-05 remain `PENDING_ACCOUNTING_APPROVAL`, after which Engineering must freeze and approve the technical execution contracts. The resulting authorization contract must consume this approved policy without trusting client-supplied role claims.
+The downstream Accounting, T-01, and Engineering gates are complete. M2 implementation authorization is recorded in `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md`; the resulting implementation must consume this approved policy without trusting client-supplied role claims.
