@@ -2,14 +2,16 @@
 
 **Product:** Vault
 **Engine:** Wendy
-**Status:** `BLOCKED_BY_ACCOUNTING_APPROVAL_AND_ENGINEERING_FREEZE`
-**Scope:** Pre-implementation Engineering contract draft for the approved PAID_EXPENSE M2-entry slice
+**Status:** `SUPERSEDED_BY_ENGINEERING_CONTRACT_v1 — HISTORICAL_DRAFT_ONLY`
+**Scope:** Historical pre-freeze planning record only; it is not a current normative contract
 **Engineering owner:** `PENDING/TBD`
 **Freeze date:** `PENDING/TBD`
 
-## 1. Dependency rule
+> Historical status note: the remaining sections record the blocked state before Accounting Gate completion. They are superseded in full by `WENDY_PAID_EXPENSE_ENGINEERING_CONTRACT_v1.md`, `WENDY_PAID_EXPENSE_ENGINEERING_DTO_SCHEMA_v1.md`, and `WENDY_PAID_EXPENSE_TEST_CONTRACT_v1.md`. Do not use their former `BLOCKED_*` labels as current M2 gate status.
 
-Engineering must not freeze a posting contract before Accounting defines what one approved financial effect is. Product Owner policy P-01 through P-06 is approved and constrains who may request, review, and authorize it, but it does not complete Accounting approval or freeze technical mechanics. This draft therefore records dependencies and open contract decisions only; it does not implement an idempotency store, fingerprint algorithm, lock, transaction, Ledger API, or retry mechanism.
+## 1. Dependency rule (historical)
+
+Engineering must not freeze a posting contract before Accounting defines what one approved financial effect is. That condition is now satisfied by the immutable `PAID_EXPENSE v1` Accounting Rule. This historical draft is superseded by [`WENDY_PAID_EXPENSE_ENGINEERING_CONTRACT_v1.md`](WENDY_PAID_EXPENSE_ENGINEERING_CONTRACT_v1.md), its versioned DTO/schema companion, and its test contract. Those documents freeze technical mechanics only; they do not implement an idempotency store, lock, transaction, Ledger API, or retry mechanism.
 
 ```text
 Accounting rule approval + recorded Product Owner policy boundary
@@ -23,7 +25,7 @@ Immutable rule and contract versions
 M2 READY / AUTHORIZED
 ```
 
-## 2. Contract decisions and dependencies
+## 2. Contract decisions and dependencies (historical)
 
 | Contract area | Constraint already known | Required upstream decision | Engineering decision still to freeze | State |
 |---|---|---|---|---|
@@ -56,7 +58,7 @@ ACCOUNTANT_OR_ADMIN_APPROVAL
 | Non-overridable controls | Override cannot bypass the Product Owner listed financial invariants or LOCKED period. | Freeze control-classification source, enforcement point, and response behavior after Accounting approval. |
 | Period behavior | OPEN only after all controls pass; CLOSED/LOCKED deny normal post with no automatic date shift; LOCKED is not unlockable by override. The Period policy returns the equivalent of `POSTING_ALLOWED`, `PERIOD_DENIED`, or `REVIEW_REQUIRED`. | Freeze Period authorization request/response and review/escalation interface after A-04 determines accounting-date semantics. Reopening remains out of M2. |
 
-## 3. Constraints that are already fixed but do not complete the freeze
+## 3. Constraints that are already fixed but do not complete the freeze (historical)
 
 - Exact decimal money is required; no binary-float accounting arithmetic.
 - Unknown or unresolved mappings fail closed or route to `REVIEW_REQUIRED`; no silent Suspense, guessed account, or guessed tax treatment.
@@ -69,7 +71,7 @@ ACCOUNTANT_OR_ADMIN_APPROVAL
 
 These are boundaries, not a complete Engineering contract. They cannot define idempotency/fingerprint/atomicity in isolation.
 
-## 4. Engineering decisions that may proceed only after upstream approval
+## 4. Engineering decisions that may proceed only after upstream approval (historical)
 
 No core posting-contract decision in §2 is finalizable without Accounting approval. The authorization-control preparation in §2.1 may now be refined against the approved Product Owner policy, but cannot be frozen until Accounting defines the financial effect, mapping, posting-date, and correction inputs. After those inputs are approved, Engineering must produce a versioned contract that covers each row, then obtain approval for:
 
@@ -79,6 +81,6 @@ No core posting-contract decision in §2 is finalizable without Accounting appro
 4. atomic transaction, concurrency, rollback, recovery, and retry behavior; and
 5. unit, contract, invariant, concurrency, and authorization tests.
 
-## 5. Engineering freeze evidence
+## 5. Engineering freeze evidence (historical)
 
 The Engineering freeze cannot be marked complete until all required upstream approvals, a named Engineering owner, immutable contract version(s), test acceptance criteria, and durable approval evidence are recorded. Until then, M2 remains `NOT READY` and no production implementation may start.

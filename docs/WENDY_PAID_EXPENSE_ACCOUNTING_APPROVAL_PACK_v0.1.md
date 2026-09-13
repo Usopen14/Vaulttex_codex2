@@ -2,15 +2,20 @@
 
 **Product:** Vault
 **Engine:** Wendy
-**Status:** `PENDING_ACCOUNTING_APPROVAL`
+**Status:** `ACCOUNTING_GATE_COMPLETE`
 **Scope:** M2 entry review for the approved THB Cash/Bank paid-expense slice only
-**Accounting approver:** `PENDING/TBD`
-**Decision date:** `PENDING/TBD`
-**Rule version to approve:** `PENDING/TBD`
+**Accounting approver:** Wongsa วงศาโรตน์
+**Approver role:** CEO
+**Decision date:** 13 Sep 2026
+**Evidence reference:** กยศ-123
+**Immutable Rule version:** `PAID_EXPENSE v1`
+**Source document SHA-256:** `6ba878997420328f91bc0de32d72529c99ca93f5b5da6413fbb43f5473dd9967`
 
 ## 1. Purpose and decision boundary
 
-This pack asks Accounting to approve or reject the accounting policy required by the `PAID_EXPENSE` rule. It is not a posting rule, implementation, JournalDraft, mapping table, or Ledger instruction.
+This pack records the finalized Accounting policy required by the `PAID_EXPENSE` rule. It is not an implementation, JournalDraft, mapping table, or Ledger instruction.
+
+The reviewer-facing request and reconfirmation evidence resolve to `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md`, the one immutable normative Accounting Rule.
 
 The Product Owner-approved scope remains one confirmed, validated pair:
 
@@ -27,80 +32,79 @@ The events remain distinct. The rule has no authority to hard-code an organizati
 | M1 FinancialEvent semantics, provenance, exact decimal Money, THB first-slice scope, and the `FULFILLS` direction | `DECIDED_M1` |
 | Product routing: `POSTED`, `REVIEW_REQUIRED`, `REJECTED`, `DUPLICATE`, and `PERIOD_DENIED` remain distinguishable | `APPROVED_FOR_M2_ENTRY` |
 | Unknown/inactive/ambiguous mapping must fail closed or require review; no silent Suspense, Miscellaneous Expense, guessed account, or guessed tax treatment | `APPROVED_FOR_M2_ENTRY` |
-| Accounting treatment, mappings, posting date, balancing construction, and journal correction behavior | `PENDING_ACCOUNTING_APPROVAL` |
+| Accounting treatment, mappings, posting date, balancing construction, and journal correction behavior | `ACCOUNTING_APPROVED — PAID_EXPENSE v1` |
 
 The Product Owner-approved `OWNER_OVERRIDE` is an elevated approval mechanism only. It does not choose a debit/credit treatment, resolve a missing account mapping, permit an unbalanced journal, infer tax treatment, or bypass an Accounting hard invariant. See `WENDY_PAID_EXPENSE_POLICY_APPROVAL_PACK_v0.1.md`.
 
-## 3. Accounting decisions awaiting approval
+## 3. Accounting finalization record
 
-### 3.1 Debit / credit semantics
+The following decisions are finalized Accounting semantics. They remain no authority to construct a JournalDraft until Engineering completes its separate Contract Freeze.
 
-**Status:** `PENDING_ACCOUNTING_APPROVAL`
+| Decision | Finalized Accounting semantic | Accounting decision | Approver | Decision date | Evidence reference | Immutable rule version | Recorded reason / modification |
+|---|---|---|---|---|---|---|---|
+| A-01 | Same-settlement PAID_EXPENSE only: debit approved organization Expense and credit approved organization Cash/Bank for same exact amount; unavailable authoritative tax impact cannot use the simple rule. | `APPROVE` | Wongsa วงศาโรตน์ | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-02 | Effective-dated, versioned organization category mapping resolves exactly one authoritative debit-side eligible Expense account; zero/multiple maps are `REVIEW_REQUIRED`. | `APPROVE` | Wongsa วงศาโรตน์ | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-03 | Effective-dated, versioned organization payment-source mapping resolves exactly one eligible same-organization Cash/Bank asset account; zero/multiple maps are `REVIEW_REQUIRED`. | `APPROVE` | Wongsa วงศาโรตน์ | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-04 | `accounting_date` derives from approved expense-recognition/effective date under AccountingProfile timezone; no independent redefinition or date shift. | `APPROVE` | Wongsa วงศาโรตน์ | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-05 | Exact balance and immutable history; full reversal inverts exact original lines/amounts; corrected replacement is versioned and Period-authorized; no arbitrary delta. | `APPROVE` | Wongsa วงศาโรตน์ | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
 
-Accounting must specify the permitted debit/credit treatment for the sole supported event pair and whether one or more approved configurations are allowed. This pack does not select sides, accounts, or lines.
+### 3.1 A-01 — PAID_EXPENSE debit / credit
 
-Approval must define:
+**Finalized semantic:** for only the approved same-settlement PAID_EXPENSE case, debit the approved organization Expense account and credit the approved organization Cash/Bank account for the identical exact-decimal amount.
 
-- the accounting effect represented by `ExpenseRecognized` plus `PaymentMade` in this first slice;
-- which resolved account category is eligible on each permitted side;
-- whether any condition changes that treatment; and
-- the versioned rule reference that governs the decision.
+`ExpenseRecognized` remains the recognition fact and `PaymentMade` remains the payment fact. A single balanced Journal may represent their approved combined accounting effect; it does not merge or replace either Financial Event.
 
-### 3.2 Category-to-account mapping contract
+The simple rule applies only where no separate authoritative tax accounting impact is required. If such impact is required but unavailable, it must route through review/tax-dependency policy rather than silently post through this rule. AP settlement, accrual-only expense, prepayment, refund, payroll, foreign currency, and unsupported tax cases remain excluded.
 
-**Status:** `PENDING_ACCOUNTING_APPROVAL`
+### 3.2 A-02 — Category-to-account mapping
 
-Candidate contract for Accounting approval; no mapping values are supplied here:
+**Finalized semantic:**
 
-| Aspect | Candidate requirement to approve or revise |
-|---|---|
-| Mapping scope | Organization-scoped and versioned; never a global hard-coded organization account ID. |
-| Mapping input | `organization_id`, approved rule version, `expense_category`, effective date/context, and the selected COA version. |
-| Mapping result | Exactly one active, postable `AccountId`, or an approved non-posting outcome. |
-| Ambiguity | Missing, inactive, multiple, incompatible, or otherwise unresolved mappings do not post and are `REVIEW_REQUIRED` when the financial meaning remains plausible. |
-| History | A later mapping change must preserve reproducibility of an earlier posted effect. |
+```text
+semantic expense category
+        → versioned organization-scoped mapping
+        → organization Expense account eligible for the PAID_EXPENSE debit side
+```
 
-Accounting must approve the exact inputs, account-eligibility rules, effective-dating semantics, and mapping-remediation process. A hard-invalid mapping request may be `REJECTED`; a plausible category that cannot resolve deterministically is `REVIEW_REQUIRED` under the Product Owner routing boundary.
+Eligibility uses the approved effective-dated accounting context, not current active state alone. Resolution must produce exactly one authoritative debit-side eligible organization Expense account. Zero or multiple eligible mappings return `REVIEW_REQUIRED`. The mapping version remains with the posted result for historical reconstruction. There is no Miscellaneous, Suspense, or guessed fallback.
 
-### 3.3 Payment-source-to-account mapping contract
+The finalized source is `PAID_EXPENSE v1`.
 
-**Status:** `PENDING_ACCOUNTING_APPROVAL`
+### 3.3 A-03 — Payment-source-to-account mapping
 
-Candidate contract for Accounting approval; no payment-source mapping values are supplied here:
+**Finalized semantic:**
 
-| Aspect | Candidate requirement to approve or revise |
-|---|---|
-| Mapping scope | Organization-scoped and versioned. |
-| Mapping input | `organization_id`, `payment_source_ref`, effective date/context, selected COA version, and approved rule version. |
-| Mapping result | Exactly one active, postable Cash/Bank `AccountId`, or an approved non-posting outcome. |
-| Bank source | An organization CUSTOM bank account may exist beneath the seed bank header; the header is not a postable funding account. |
-| Cash source | Cash on Hand treatment and eligibility must be explicit. |
-| Ambiguity/history | Unresolved mapping cannot post and is `REVIEW_REQUIRED` when the payment source is known; mapping changes must preserve prior posted-result reconstruction. |
+```text
+approved payment-source identity
+        → versioned organization-scoped mapping
+        → organization Cash/Bank asset account eligible for the PAID_EXPENSE credit side
+```
 
-### 3.4 Posting-date semantics
+The payment source and resolved account must belong to the same organization. Eligibility uses the approved effective-dated accounting context, not current active state alone. Resolution must produce exactly one eligible Cash/Bank asset account. Zero or multiple eligible mappings return `REVIEW_REQUIRED`. Mapping version remains reconstructible for history. Display text, bank name, or mutable metadata alone must not authoritatively infer a bank or cash account.
 
-**Status:** `PENDING_ACCOUNTING_APPROVAL`
+The finalized source is `PAID_EXPENSE v1`.
 
-The event contract already keeps `effective_date`, `accounting_date`, and `payment_date` explicit; the immediate-paid-expense slice currently requires those dates to match. Confirmation is not period authorization.
+### 3.4 A-04 — Posting date
 
-Accounting must approve:
+**Finalized semantic:** `accounting_date` derives from the approved expense-recognition/effective date under the organization AccountingProfile timezone. Payment date, source timestamp, `received_at`, and `created_at` do not independently redefine it. `created_at` is never the posting date.
 
-- which explicit event date is proposed as the posting date;
-- how organization timezone affects that proposal;
-- treatment of late events; and
-- which cases require `REVIEW_REQUIRED`, `PERIOD_DENIED`, or another approved non-posting outcome.
+For a late-arriving event, evaluate its approved `accounting_date`: OPEN follows normal controls; CLOSED returns `PERIOD_DENIED` or review; LOCKED denies posting. The date is never silently moved to the current period.
 
-### 3.5 Balancing requirements
+The finalized source is `PAID_EXPENSE v1`.
 
-**Status:** `PENDING_ACCOUNTING_APPROVAL`
+### 3.5 A-05 — Balancing and correction / reversal
 
-No accounting effect may post unless the approved result satisfies exact-decimal balancing: total debit equals total credit. Accounting must approve the full balancing invariant, permitted line composition, precision/rounding treatment if any, and the failure disposition. This pack authorizes no rounding policy.
+**Finalized semantic:** exact decimal arithmetic only; total debit must equal total credit; an unbalanced JournalDraft cannot post; posted Journal history is immutable.
 
-### 3.6 Correction / reversal behavior
+For M2 PAID_EXPENSE, correction is a fully linked sequence:
 
-**Status:** `PENDING_ACCOUNTING_APPROVAL`
+```text
+original Journal → full reversal → corrected replacement event / Journal
+```
 
-Financial Events are immutable and event corrections preserve lineage. Accounting must approve the journal-level correction/reversal behavior, eligibility triggers, relationship/provenance requirements, and historical reconstruction rules. This pack does not choose a correction mechanism.
+The full reversal inverts the exact original posted Journal lines and amounts; it does not re-resolve the latest category mapping, account mapping, or accounting rule. A corrected replacement may use a newly approved rule/mapping version. Reversal and replacement require Period authorization. Preserve links, reason, actor, source, rule version, and audit trail. Arbitrary delta-adjustment correction is outside the first PAID_EXPENSE M2 scope.
+
+The finalized source is `PAID_EXPENSE v1`.
 
 ## 4. Explicit fail-closed conditions
 
@@ -121,15 +125,17 @@ The Product Owner routing decision determines whether an unresolved, plausible c
 
 ## 5. Approval examples
 
-| Case | Expected outcome before Accounting approvals | Approved-rule outcome only after all required decisions exist |
+| Case | Accounting Rule v1 outcome | Posting precondition after Engineering Freeze |
 |---|---|---|
-| Confirmed matching pair, one eligible category mapping, one eligible Cash/Bank mapping, authorized period, and balanced approved treatment | `PENDING_ACCOUNTING_APPROVAL`; no post yet | Candidate to become `POSTED` if every approved contract check passes. |
-| Category exists but mapping is absent, multiple, inactive, or incompatible | No post | `REVIEW_REQUIRED`; never a guessed account. A hard-invalid request remains `REJECTED` under the Product Owner boundary. |
+| Confirmed matching pair, one eligible category mapping, one eligible Cash/Bank mapping, authorized period, and balanced approved treatment | Accounting semantics satisfied | Candidate to become `POSTED` only after every Engineering contract check passes. |
+| Category exists but mapping is absent, multiple, inactive, or incompatible | `REVIEW_REQUIRED`; no post | Never a guessed account. A hard-invalid request remains `REJECTED` under the Product Owner boundary. |
 | Payment source is known but no eligible Cash/Bank mapping exists | No post | `REVIEW_REQUIRED`; never a guessed account. |
 | Invalid amount/schema, organization mismatch, unsupported currency, or broken event invariant | No post | `REJECTED`; no account selection or journal construction. |
 | Period authorization is denied | No post | `PERIOD_DENIED`; no journal before Period Engine authorization. |
-| Corrected event relation without approved journal correction policy | No post | Non-posting review/escalation until Accounting approves correction/reversal behavior. |
+| Corrected event relation without exact-original reversal/replacement evidence | No post | Non-posting review/escalation; Rule v1 correction semantics must be satisfied. |
 
-## 6. Accounting approval record
+## 6. Accounting Gate completion record
 
-Accounting must record an approval or rejection for each §3 item, the approved immutable rule version, named approver, decision date, and durable evidence reference. Until all fields are completed, this pack remains `PENDING_ACCOUNTING_APPROVAL` and M2 remains `NOT READY`.
+All five A decisions are recorded as `APPROVE` in the received reconfirmation evidence. The one immutable normative artifact is `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md`, with source document SHA-256 `6ba878997420328f91bc0de32d72529c99ca93f5b5da6413fbb43f5473dd9967` and evidence reference กยศ-123.
+
+The Accounting Gate is `COMPLETE`. M2 remains `NOT READY / NOT AUTHORIZED` until Engineering completes the separate Contract Freeze and its required tests/evidence.

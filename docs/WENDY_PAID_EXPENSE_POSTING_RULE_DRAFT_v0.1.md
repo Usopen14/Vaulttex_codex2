@@ -4,14 +4,15 @@
 **Engine:** Wendy
 **Rule ID:** `PAID_EXPENSE`
 **Draft rule version:** `0.1.0-draft`
-**Status:** `DRAFT/PENDING` — Product Owner M2-entry decisions approved; Accounting and Engineering decisions remain pending
+**Status:** `DRAFT/PENDING_ENGINEERING_FREEZE` — Product Owner and Accounting decisions approved; Engineering decisions remain pending
 **Review owners:** Product Owner and Accounting
 **Product Owner approver:** Product Owner
-**Accounting approver:** `PENDING/TBD`
+**Accounting approver:** Wongsa วงศาโรตน์
 **Product Owner decision date:** 2026-09-11
 **Product Owner SOD clarification date:** 2026-09-13
 **Product Owner Policy decision-register approval date:** 2026-09-13
-**Accounting decision date:** `PENDING/TBD`
+**Accounting decision date:** 13 Sep 2026
+**Accounting Rule:** `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md` (`PAID_EXPENSE v1`)
 **M2 authorization gate:** `NOT READY`
 
 ## 1. Purpose, authority, and review rule
@@ -69,30 +70,26 @@ Product Owner review is complete for the M2-entry scope, routing semantics, fail
 - Authorized `OWNER`, `ADMIN`, `ACCOUNTANT`, and permitted `MEMBER`/`USER` may submit; originating authorized users may `USER_CONFIRM`; elevated approval is restricted to authorized Owner/Admin/Accountant subject to capability and SOD checks.
 - The future Period authorization boundary uses `POSTING_ALLOWED`, `PERIOD_DENIED`, or `REVIEW_REQUIRED`; only `POSTING_ALLOWED` is posting eligibility. Period Engine never posts Ledger.
 
-P-01 through P-06 are Product Owner-approved for the M2 policy boundary. Exact DTO/schema, capability storage, service enforcement, and all Ledger mechanics remain Engineering Freeze work. Accounting decisions remain pending.
+P-01 through P-06 are Product Owner-approved for the M2 policy boundary. A-01 through A-05 are finalized by `PAID_EXPENSE v1`. Exact DTO/schema, capability storage, service enforcement, and all Ledger mechanics remain Engineering Freeze work.
 
-## 3. Accounting decisions requiring explicit approval
+## 3. Accounting decisions finalized
 
-Accounting owns final GL mapping, debit/credit semantics, balancing, and correction behavior. None of these rows authorizes an implementation until Accounting approval is recorded.
+Accounting finalized the following semantics in `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md`. The rule is Accounting policy only; it does not authorize implementation.
 
 | Topic | Constraint already known | State | Exact formal decision required |
 |---|---|---|---|
-| Debit / credit semantics | A PAID_EXPENSE rule must produce a balanced accounting result only through the future Accounting Engine. M1 intentionally defines no lines, sides, or amounts. | `REQUIRES_FORMAL_DECISION` | Approve the debit/credit treatment for the supported combination and the permitted construction rules. |
-| Category-to-account resolution | `expense_category` is not an `account_id`. The minimum COA provides system semantics, but does not itself create a final organization mapping. | `REQUIRES_FORMAL_DECISION` | Approve a versioned, organization-scoped mapping basis for each supported category, active/postable eligibility, ambiguity handling, and mapping-change history. Do not hard-code organization-specific account IDs in the rule. |
-| Payment-source-to-account resolution | `payment_source_ref` is not a GL account ID. Bank accounts may be organization CUSTOM accounts under the seed header; no fictional bank account exists in the seed. | `REQUIRES_FORMAL_DECISION` | Approve a versioned one-to-one organization payment-source mapping, active/postable eligibility, cash-on-hand handling, ambiguity handling, and historical reproducibility. |
-| Posting-date semantics | The first event schema has explicit `effective_date`, `accounting_date`, and `payment_date`; immediate paid expense currently requires them to match. Event confirmation is not period authorization. | `REQUIRES_FORMAL_DECISION` | Approve which accounting date is proposed for posting, organization-timezone treatment, late-event handling, and the relationship to an authorized accounting period. |
-| Balancing and correction behavior | A confirmed FinancialEvent is immutable; event corrections are linked reversal/adjustment/supersession facts. M1 has no journal or ledger mutation behavior. | `REQUIRES_FORMAL_DECISION` | Approve balancing validation, a journal-level correction/reversal approach, permitted correction triggers, historical reconstruction, and whether a failed post has any accounting effect. |
+| Debit / credit semantics | Same-settlement PAID_EXPENSE is debit eligible Expense / credit eligible Cash/Bank for same exact amount; unavailable authoritative tax accounting impact does not use the simple rule. | `ACCOUNTING_APPROVED` | Rule v1 §3. |
+| Category-to-account resolution | `expense_category` resolves through exactly one effective-dated, versioned organization mapping to a debit-side eligible Expense account; zero/multiple maps are `REVIEW_REQUIRED`. | `ACCOUNTING_APPROVED` | Rule v1 §4. |
+| Payment-source-to-account resolution | `payment_source_ref` resolves through exactly one effective-dated, versioned organization mapping to a same-organization credit-side Cash/Bank account; zero/multiple maps are `REVIEW_REQUIRED`. | `ACCOUNTING_APPROVED` | Rule v1 §5. |
+| Posting-date semantics | `accounting_date` derives from approved expense-recognition/effective date under AccountingProfile timezone; it is not independently redefined or silently shifted. | `ACCOUNTING_APPROVED` | Rule v1 §6. |
+| Balancing and correction behavior | Exact decimal balance and immutable history; full reversal inverts exact original lines/amounts, replacement is versioned, and both require Period authorization. | `ACCOUNTING_APPROVED` | Rule v1 §7. |
 | Tax treatment | Tax observations are `OBSERVATION_ONLY`; the first slice does not create authoritative VAT/WHT/CIT treatment or tax-account effects. | `OUT_OF_SCOPE` | Keep out of this rule unless a separately approved Tax Engine capability changes the scope. |
 
-### 3.1 Accounting approval agenda
+### 3.1 Accounting evidence
 
-Accounting must explicitly approve or reject each question below; this draft supplies no answer.
+Reconfirmed source hash: `6ba878997420328f91bc0de32d72529c99ca93f5b5da6413fbb43f5473dd9967`. Received decision for each A-01 through A-05: `APPROVE`; approver: Wongsa วงศาโรตน์; role: CEO; decision date: 13 Sep 2026; evidence reference: กยศ-123.
 
-1. **Debit/credit treatment:** What are the permitted debit and credit semantics for the sole supported event pair, and what account eligibility must be checked before construction?
-2. **Category resolution:** What versioned organization-scoped mapping resolves each supported `expense_category`, how is a mapping made effective-dated, and how does remediation preserve the Product Owner routing boundary: plausible unresolved category → `REVIEW_REQUIRED`; hard-invalid request → `REJECTED`?
-3. **Payment-source resolution:** What versioned mapping resolves a `payment_source_ref` to exactly one active postable Cash/Bank account, including Cash on Hand and organization CUSTOM bank accounts?
-4. **Posting date:** Which explicit event date is proposed to the Period Engine, how is the organization timezone applied, and what happens for late events or a period denial/escalation?
-5. **Balancing and correction:** What balanced-result invariant applies, and how are journal-level correction/reversal records linked to immutable event correction relationships without rewriting history?
+The immutable rule supersedes this former approval agenda. Any future accounting-policy change requires a new approved Accounting Rule version rather than changing `PAID_EXPENSE v1`.
 
 ## 4. Engineering contracts
 
@@ -119,15 +116,15 @@ Supporting approval packs:
 
 | # | Decision to freeze | Approval owner | State |
 |---|---|---|---|
-| 1 | Debit / credit semantics | Accounting | `PENDING/TBD` |
-| 2 | Category-to-account resolution | Accounting | `PENDING/TBD` |
-| 3 | Payment-source-to-account resolution | Accounting | `PENDING/TBD` |
-| 4 | Posting-date semantics | Accounting | `PENDING/TBD` |
-| 5 | Correction / reversal behavior | Accounting | `PENDING/TBD` |
+| 1 | Debit / credit semantics | Accounting | `ACCOUNTING_GATE_COMPLETE — PAID_EXPENSE v1` |
+| 2 | Category-to-account resolution | Accounting | `ACCOUNTING_GATE_COMPLETE — PAID_EXPENSE v1` |
+| 3 | Payment-source-to-account resolution | Accounting | `ACCOUNTING_GATE_COMPLETE — PAID_EXPENSE v1` |
+| 4 | Posting-date semantics | Accounting | `ACCOUNTING_GATE_COMPLETE — PAID_EXPENSE v1` |
+| 5 | Correction / reversal behavior | Accounting | `ACCOUNTING_GATE_COMPLETE — PAID_EXPENSE v1` |
 | 6 | Posting idempotency scope | Engineering | `PENDING/TBD` |
 | 7 | Event fingerprint canonicalization | Engineering | `PENDING/TBD` |
-| 8 | Authorization / segregation-of-duties policy | Engineering, using approved Product policy and pending Accounting semantics | `PRODUCT_POLICY_APPROVED; ENGINEERING_FREEZE_PENDING` |
-| 9 | Period Engine posting-authorization contract | Engineering, using approved Product policy and pending A-04 accounting-date semantics | `PRODUCT_POLICY_APPROVED; ENGINEERING_FREEZE_PENDING` |
+| 8 | Authorization / segregation-of-duties policy | Engineering, using approved Product policy and Accounting Rule v1 | `PRODUCT_POLICY_AND_ACCOUNTING_APPROVED; ENGINEERING_FREEZE_PENDING` |
+| 9 | Period Engine posting-authorization contract | Engineering, using approved Product policy and Accounting Rule v1 | `PRODUCT_POLICY_AND_ACCOUNTING_APPROVED; ENGINEERING_FREEZE_PENDING` |
 | 10 | Atomic/idempotent Ledger-posting contract | Engineering | `PENDING/TBD` |
 
 Unknown or unresolved mappings are `REVIEW_REQUIRED` or otherwise fail closed according to the Product Owner-approved routing semantics; they never select Suspense, Miscellaneous Expense, or a guessed account/tax treatment.
@@ -146,10 +143,8 @@ Before the status can change from `DRAFT/PENDING`, the reviewers must record an 
 
 M2 MUST NOT be marked `READY / AUTHORIZED` until all items below have an approved decision and evidence.
 
-1. **Accounting rule semantics:** debit/credit treatment; category-to-account mapping policy; payment-source-to-account mapping policy; posting-date semantics; balancing and journal correction/reversal policy.
-2. **Engineering execution contract:** posting idempotency scope; exact fingerprint canonicalization; server enforcement of the approved authorization/SOD policy; Period Engine DTO/semantics consistent with P-06; atomic/idempotent Ledger posting and rollback/provenance guarantees.
-3. **Accounting approval evidence:** named Accounting approver, approval date, immutable evidence reference, and an approved immutable rule version that incorporates the Product Owner-approved M2-entry semantics.
-4. **Approved acceptance tests:** the agreed contract/invariant suite for the Accounting and Engineering decisions, including the Product Owner-approved fail-closed and routing behavior.
+1. **Engineering execution contract:** posting idempotency scope; exact fingerprint canonicalization; server enforcement of the approved authorization/SOD policy; Period Engine DTO/semantics consistent with P-06 and Accounting Rule v1; atomic/idempotent Ledger posting and rollback/provenance guarantees.
+2. **Approved acceptance tests:** the agreed contract/invariant suite for the Accounting and Engineering decisions, including the Product Owner-approved fail-closed and routing behavior.
 
 ## 7. Explicit exclusions
 

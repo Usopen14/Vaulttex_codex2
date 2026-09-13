@@ -5,11 +5,12 @@
 **Status:** `DECISION_READY — M2 NOT READY / NOT AUTHORIZED`
 **Scope:** Approved THB Cash/Bank paid-expense vertical slice only
 **Product Owner / Policy approval date:** 2026-09-13 for P-01 through P-06
-**Accounting approval date:** `PENDING/TBD` for A-01 through A-05
+**Accounting approval date:** 13 Sep 2026 for A-01 through A-05
+**Accounting Rule:** `PAID_EXPENSE v1` — source SHA-256 `6ba878997420328f91bc0de32d72529c99ca93f5b5da6413fbb43f5473dd9967`
 
 ## 1. How to use this register
 
-This is a decision register, not M2 code or a frozen Engineering contract. A-01 through A-05 remain proposals awaiting explicit Accounting approval. P-01 through P-06 record the Product Owner-approved M2 policy boundary; their future DTO, storage, and service details still require Engineering Freeze.
+This is a decision register, not M2 code or a frozen Engineering contract. A-01 through A-05 are finalized by the immutable Accounting Rule `PAID_EXPENSE v1`; P-01 through P-06 record the Product Owner-approved M2 policy boundary. Their future DTO, storage, and service details still require Engineering Freeze.
 
 The register preserves these existing constraints:
 
@@ -23,13 +24,13 @@ The register preserves these existing constraints:
 
 ## 2. Single M2 decision register
 
-| Decision ID | Decision area | Recommended MVP default — proposal only | Viable alternatives / material tradeoff | Required approver | Status | Dependent Engineering contract |
+| Decision ID | Decision area | Baseline (recommendation for Accounting, approved policy for P rows) | Viable alternatives / material tradeoff | Required approver | Status | Dependent Engineering contract |
 |---|---|---|---|---|---|---|
-| A-01 | Debit / credit semantics | Propose one PAID_EXPENSE journal representation from the confirmed linked pair: debit one resolved eligible expense account and credit one resolved eligible Cash/Bank account for the same exact amount. Events remain distinct; the Journal is their accounting representation, not a replacement event. | Separate recognition/payment journals introduces payable, clearing, or settlement semantics; this expands beyond the direct paid-expense slice. A combined journal without independent event lineage loses traceability. | Accounting | `PENDING_ACCOUNTING_APPROVAL` | Accounting-rule DTO; JournalDraft construction; balance invariant; atomic posting manifest. |
-| A-02 | Category-to-account mapping | Accounting owns a versioned, organization-scoped mapping: semantic `expense_category` plus approved context resolves to exactly one active, postable organization `AccountId` under a selected COA version. Organization customization is allowed only through that controlled mapping; posted results retain the resolved account and mapping/rule version. | Fixed system-category mapping reduces setup but cannot represent organization charts. Per-event manual account choice is flexible but weakens determinism and auditability. | Accounting | `PENDING_ACCOUNTING_APPROVAL` | Mapping lookup; validation disposition; rule/version provenance; historical reconstruction. |
-| A-03 | Payment-source-to-account mapping | Accounting owns a versioned, organization-scoped mapping from a stable `payment_source_ref` identity to exactly one active, postable organization Cash/Bank `AccountId`. A bank header is not a funding account. A closed/inactive account remains historical evidence but cannot receive a new post. | Putting a GL account ID directly in PaymentMade couples event capture to accounting master data. Inferring a bank account from text or source label risks wrong cash posting. | Accounting | `PENDING_ACCOUNTING_APPROVAL` | Payment-source validation; account eligibility; mapping version provenance; historical reconstruction. |
-| A-04 | Posting-date semantics | For the approved immediate-paid-expense slice, propose the explicit `accounting_date` as the posting-date candidate; validate it in organization timezone and require matching first-slice dates already established by the event contract. Source date remains evidence; no automatic date shifting. Late-arriving event: evaluate its approved posting date through Period Engine. | Use payment date or source date as posting date; each changes accounting cut-off meaning. Automatically shift to the next OPEN date hides the original accounting fact and is prohibited. | Accounting, with Period authority input | `PENDING_ACCOUNTING_APPROVAL` | Period authorization request; date validation; outcome routing; audit/provenance. |
-| A-05 | Balancing and correction / reversal | Every posted result must satisfy exact decimal `total_debit = total_credit`; posted journals are immutable. For M2, recommend correcting an approved original through a separately posted, linked reversal followed by an approved replacement where needed. Do not permit delta adjustment in the PAID_EXPENSE MVP until explicitly approved. | Delta adjustments can reduce entries but make original economic intent and reconstruction harder. Mutable edits break auditability. | Accounting | `PENDING_ACCOUNTING_APPROVAL` | Journal invariants; correction/reversal relationship; immutable history; atomic write set. |
+| A-01 | Debit / credit semantics | Same-settlement PAID_EXPENSE only: debit the approved organization Expense account and credit the approved organization Cash/Bank account for the same exact amount. Events remain distinct; the Journal is their combined accounting representation, not a replacement event. The simple rule excludes unavailable authoritative tax impact. | Separate recognition/payment journals introduces payable, clearing, or settlement semantics; this expands beyond the direct paid-expense slice. A combined journal without independent event lineage loses traceability. | Accounting | `APPROVE` | Accounting-rule DTO; JournalDraft construction; balance invariant; atomic posting manifest. |
+| A-02 | Category-to-account mapping | `semantic expense category → effective-dated, versioned organization-scoped mapping → exactly one debit-side-eligible organization Expense account`; retain mapping version; zero/multiple/inactive mappings return `REVIEW_REQUIRED`; no Miscellaneous/Suspense/guessed fallback. | Fixed system-category mapping reduces setup but cannot represent organization charts. Per-event manual account choice is flexible but weakens determinism and auditability. | Accounting | `APPROVE` | Mapping lookup; validation disposition; rule/version provenance; historical reconstruction. |
+| A-03 | Payment-source-to-account mapping | `approved payment-source identity → effective-dated, versioned organization-scoped mapping → exactly one credit-side-eligible organization Cash/Bank asset account`; same organization; retain mapping version; display text is not authoritative; zero/multiple/ineligible source is `REVIEW_REQUIRED`. | Putting a GL account ID directly in PaymentMade couples event capture to accounting master data. Inferring a bank account from text or source label risks wrong cash posting. | Accounting | `APPROVE` | Payment-source validation; account eligibility; mapping version provenance; historical reconstruction. |
+| A-04 | Posting-date semantics | `accounting_date` derives from approved expense-recognition/effective date under organization AccountingProfile timezone. Payment/source/received/created dates do not redefine it. OPEN normal controls; CLOSED `PERIOD_DENIED`/review; LOCKED denial; no date shift. | Use payment date or source date as posting date; each changes accounting cut-off meaning. Automatically shift to the next OPEN date hides the original accounting fact and is prohibited. | Accounting, with Period authority input | `APPROVE` | Period authorization request; date validation; outcome routing; audit/provenance. |
+| A-05 | Balancing and correction / reversal | Exact decimal `total debit = total credit`; no unbalanced JournalDraft post; immutable history; correction is original Journal → full reversal of exact original lines/amounts → corrected replacement event/Journal with audit lineage and Period authorization; arbitrary delta adjustment is out of M2. | Delta adjustments can reduce entries but make original economic intent and reconstruction harder. Mutable edits break auditability. | Accounting | `APPROVE` | Journal invariants; correction/reversal relationship; immutable history; atomic write set. |
 | P-01 | Server capability matrix | Server evaluates organization-scoped capability; role label alone is insufficient. Authorized `OWNER`, `ADMIN`, `ACCOUNTANT`, and permitted `MEMBER`/`USER` may submit; the originating authorized user may `USER_CONFIRM`; server-authorized `OWNER`/`ADMIN`/`ACCOUNTANT` may provide elevated approval subject to SOD; Owner Override is Owner-only and conditional; only Ledger Posting Service writes posted Ledger records. | Broadly granting Owner/Admin all actions was rejected in favor of server authorization and SOD. Client-supplied roles remain non-authoritative. | Product Owner / Policy authority | `APPROVED_PRODUCT_POLICY_M2` | Authorization decision contract; service identity enforcement; audit fields; authorization tests. |
 | P-02 | Independent approver resolution | Eligible independent approver is in the same organization, has active authorized membership and `OWNER`/`ADMIN`/`ACCOUNTANT` approval capability, differs from the originator by canonical actor identity, and is not otherwise excluded by SOD. Any currently eligible approver may review under queue-assignment policy; with none, do not downgrade and allow Owner Override only when explicitly permitted. | Auto-approval or a display-name comparison was rejected because it obscures authority and is mutable. | Product Owner / Policy authority | `APPROVED_PRODUCT_POLICY_M2` | Eligible-approver lookup; self-approval detection; authorization decision audit; Owner Override validation. |
 | P-03 | SOD overlap rules | Originator may submit and `USER_CONFIRM`. Originator may not approve their own elevated exception or correction to a previously posted effect by default. Only explicit, auditable Owner Override may be an exception, and it never bypasses non-overridable financial invariants. | Universal four-eyes confirmation was not selected. Broad elevated self-approval remains prohibited. | Product Owner / Policy authority | `APPROVED_PRODUCT_POLICY_M2` | Capability matrix; self-approval logic; correction approval flow; Owner Override audit metadata. |
@@ -37,11 +38,23 @@ The register preserves these existing constraints:
 | P-05 | CLOSED / LOCKED period escalation | OPEN may post only after all controls pass. CLOSED returns `PERIOD_DENIED` with optional review/escalation and no automatic date shift. LOCKED returns `PERIOD_DENIED`; no Owner Override, automatic reopen, or adjustment into another period. Reopen execution is out of M2 and escalation itself grants no posting permission. | Automatic reopen/date shift and treating CLOSED as `REJECTED` were rejected. | Product Owner / Policy authority | `APPROVED_PRODUCT_POLICY_M2` | Period result routing; escalation-case contract; no-post invariant; audit trail. |
 | P-06 | Period Engine authorization interface | Period request includes organization, requester, event/economic-group reference, posting date, timezone/AccountingProfile reference, accounting period, rule identity/version, approval context, and requested operation. It returns `POSTING_ALLOWED`, `PERIOD_DENIED`, or `REVIEW_REQUIRED`, with period ID, reason codes, escalation/approval requirement where applicable, and period/rule/policy version references. Only `POSTING_ALLOWED` can permit posting eligibility; Period Engine never posts Ledger. | Boolean/status-only responses were rejected because they lose routing and audit information. | Product Owner / Policy authority | `APPROVED_PRODUCT_POLICY_M2` | Period authorization request/response DTO; authorization audit; outcome routing; atomic-post precondition. |
 
-## 3. Accounting decision proposals
+### Accounting approval record — A-01 through A-05
+
+The source decision record approved the A rows above. The immutable normative source is `WENDY_PAID_EXPENSE_ACCOUNTING_RULE_v1.md`.
+
+| Decision ID | Accounting approval | Approver | Approver role | Decision date | Evidence reference | Immutable rule version | Recorded reason / modification |
+|---|---|---|---|---|---|---|---|
+| A-01 | `APPROVE` | Wongsa วงศาโรตน์ | CEO | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-02 | `APPROVE` | Wongsa วงศาโรตน์ | CEO | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-03 | `APPROVE` | Wongsa วงศาโรตน์ | CEO | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-04 | `APPROVE` | Wongsa วงศาโรตน์ | CEO | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+| A-05 | `APPROVE` | Wongsa วงศาโรตน์ | CEO | 13 Sep 2026 | กยศ-123 | `PAID_EXPENSE v1` | APPROVE |
+
+## 3. Accounting decisions finalized
 
 ### A-01 — PAID_EXPENSE debit / credit semantics
 
-**Exact decision required:** Approve the direct paid-expense journal treatment for the one supported pair and the permitted eligible account classes. The decision must separately preserve:
+**Finalized decision:** `PAID_EXPENSE v1` applies the direct paid-expense treatment for the one supported pair and preserves:
 
 ```text
 ExpenseRecognized = business/accounting recognition fact
@@ -51,47 +64,47 @@ Journal           = approved accounting representation of the linked pair
 
 **Why it matters:** It defines what Engineering means by one financial effect, which then controls JournalDraft construction, balance validation, idempotency, and correction behavior.
 
-**Recommended MVP default:** one exact-decimal balanced journal representation from the pair: debit the resolved eligible expense account and credit the resolved eligible Cash/Bank account for the same amount. This is a recommendation pending Accounting approval, not a selected policy.
+**Finalized semantics:** one exact-decimal balanced Journal representation debits the resolved eligible Expense account and credits the resolved eligible Cash/Bank account for the same amount. It applies only where no separate authoritative tax accounting impact is required; unavailable authoritative tax impact routes for review rather than silently posting.
 
 **Alternatives and consequences:** Separate event journals require payable, clearing, settlement, or liability semantics that are not approved in the first slice. A combined journal without both event references cannot preserve the required lineage.
 
 ### A-02 — Category-to-account mapping
 
-**Exact decision required:** Approve the mapping owner, version identity, eligible account rules, organization customization process, effective-dating behavior, missing/inactive mapping disposition, and historical reproducibility rule.
+**Finalized decision:** use a versioned organization-scoped mapping, effective-dated against the approved accounting context, with historical reproducibility.
 
 **Why it matters:** The semantic expense category is not an account ID. Without a deterministic approved mapping, M2 cannot choose an expense account or define the financial effect.
 
-**Recommended MVP default:** Accounting-owned versioned organization mapping with exactly one active, postable result for the selected COA version. A plausible unresolved category is `REVIEW_REQUIRED`; a hard-invalid request is `REJECTED`; neither posts.
+**Finalized semantics:** resolution produces exactly one authoritative debit-side-eligible organization Expense account. Zero or multiple eligible mappings are `REVIEW_REQUIRED`; neither current active state alone nor a silent fallback controls resolution.
 
 **Alternatives and consequences:** A shared fixed chart mapping is simpler but prevents organization-specific chart configuration. Free per-event selection is flexible but undermines deterministic policy and reproducibility.
 
 ### A-03 — Payment-source-to-account mapping
 
-**Exact decision required:** Approve stable payment-source identity, one-to-one Cash/Bank account mapping, organization/account ownership consistency, inactive/closed account behavior, and historical mapping reconstruction.
+**Finalized decision:** use a stable payment-source identity and a versioned organization-scoped mapping, effective-dated against the approved accounting context, with historical reproducibility.
 
 **Why it matters:** Payment source identity is not a GL account ID. Without the mapping, credit-side selection would be guessed.
 
-**Recommended MVP default:** versioned organization mapping to exactly one active postable Cash/Bank account; known source with unresolved mapping is `REVIEW_REQUIRED`; inactive/closed account accepts no new post but stays available for historical reconstruction.
+**Finalized semantics:** resolution produces exactly one eligible same-organization Cash/Bank asset account. Zero or multiple eligible mappings are `REVIEW_REQUIRED`; display text, bank name, or mutable metadata alone is not authoritative.
 
 **Alternatives and consequences:** Event-supplied account IDs couple capture to accounting policy; text matching a bank label can silently mispost cash.
 
 ### A-04 — Posting-date semantics
 
-**Exact decision required:** Select the posting-date candidate and define timezone, late-arrival, OPEN/CLOSED/LOCKED outcomes, and source-date evidentiary role.
+**Finalized decision:** `accounting_date` derives from the approved expense-recognition/effective date under the organization AccountingProfile timezone.
 
 **Why it matters:** The selected date determines the Period Engine request and whether the financial effect can post.
 
-**Recommended MVP default:** use explicit `accounting_date` as candidate, validate in organization timezone, retain source/payment dates as separate facts/evidence, and never silently shift date. CLOSED/LOCKED outcomes are non-posting.
+**Finalized semantics:** payment date, source timestamp, `received_at`, and `created_at` do not redefine `accounting_date`; `created_at` is not posting date. OPEN follows normal controls, CLOSED is `PERIOD_DENIED`/review, LOCKED is denied, and no date shifts silently.
 
 **Alternatives and consequences:** Payment-date or source-date posting changes cut-off semantics. Automatic date shift may make posting succeed but produces a misleading period assignment.
 
 ### A-05 — Balancing and correction / reversal
 
-**Exact decision required:** Approve exact balance rule, immutable posted history, reversal/replacement procedure, lineage, and whether delta adjustment is in scope.
+**Finalized decision:** exact decimal debit/credit balancing and immutable history are mandatory; correction is reversal plus replacement, not delta adjustment.
 
 **Why it matters:** It defines valid journal construction, atomic effect, recovery, and historical reconstruction.
 
-**Recommended MVP default:** exact total debit equals total credit; immutable post; separately linked reversal plus replacement when correction is needed; no delta adjustment in MVP.
+**Finalized semantics:** a full reversal inverts the exact original posted Journal lines and amounts without re-resolving the latest mapping/rule. A corrected replacement may use a newly approved rule/mapping version, and reversal/replacement requires Period authorization.
 
 **Alternatives and consequences:** Delta adjustment can reduce entry volume but adds unapproved partial-correction semantics. Mutable posted journals break audit history.
 
@@ -182,25 +195,27 @@ This matrix is intentionally capability-based: a role label alone grants no auth
 
 All are `APPROVED_PRODUCT_POLICY_M2` with Product Owner evidence dated 2026-09-13.
 
-### 5.2 Decisions requiring Accounting approval
+### 5.2 Accounting decisions approved
 
-- A-01 debit/credit semantics.
-- A-02 category-to-account mapping contract.
-- A-03 payment-source-to-account mapping contract.
-- A-04 accounting posting-date semantics.
-- A-05 balancing and correction/reversal policy.
+- A-01 debit/credit semantics and tax-impact boundary.
+- A-02 effective-dated category-to-account mapping contract.
+- A-03 effective-dated payment-source-to-account mapping contract.
+- A-04 accounting-date derivation and Period interaction.
+- A-05 balancing and exact-original correction/reversal policy.
+
+All five are `APPROVE` in the received Accounting reconfirmation evidence and are finalized by `PAID_EXPENSE v1`.
 
 ### 5.3 Accounting coordination required, but not an additional Policy approval
 
-- P-02/P-03 are approved policy controls, but Accounting must still approve the correction/reversal semantics in A-05 that those controls protect.
-- P-04 is approved policy; A-02/A-03 must define how mapping remediation is resolved without violating the queue/audit boundary.
-- P-05/P-06 are approved policy boundaries; A-04 must define the accounting-date semantics proposed to the Period authority.
+- P-02/P-03 protect the finalized A-05 correction/reversal semantics.
+- P-04 constrains remediation of finalized A-02/A-03 mappings through the review/audit boundary.
+- P-05/P-06 constrain the finalized A-04 accounting-date semantics supplied to the Period authority.
 
 This coordination does not change P-01 through P-06 back to pending. The exact Period DTO and all service mechanics remain Engineering Freeze work.
 
 ### 5.4 Engineering-only decisions after policy approval
 
-After A-01 through A-05 are approved, Engineering may make technical choices consistent with the already-approved P-01 through P-06 policy boundary for:
+With A-01 through A-05 finalized, Engineering may begin the separate Contract Freeze preparation consistent with the already-approved P-01 through P-06 policy boundary for:
 
 - exact DTO field names, schema versions, and error serialization;
 - fingerprint encoding/hash algorithm after approved equivalence inputs are known;
@@ -211,14 +226,14 @@ After A-01 through A-05 are approved, Engineering may make technical choices con
 
 These technical choices still require Engineering freeze evidence, but do not reopen approved accounting or policy meaning.
 
-## 6. Minimum decisions before Engineering Contract Freeze can begin
+## 6. Accounting Gate conclusion for Engineering Contract Freeze entry
 
-Engineering Contract Freeze must not begin until, at minimum:
+The Accounting and Product/Policy decision prerequisites are complete:
 
-1. A-01 defines the single approved PAID_EXPENSE accounting effect and balance representation.
-2. A-02 and A-03 define deterministic, versioned mapping identity, eligibility, missing/inactive behavior, and history.
-3. A-04 and A-05 define posting-date/Period interaction, balancing, and correction/reversal boundaries.
+1. A-01 defines the single approved PAID_EXPENSE accounting effect, tax-impact boundary, and balance representation.
+2. A-02 and A-03 define deterministic, effective-dated versioned mapping identity, eligibility, zero/multiple disposition, and history.
+3. A-04 and A-05 define accounting-date/Period interaction, balancing, and exact-original correction/reversal boundaries.
 4. P-01 through P-06 Product Owner approval evidence is retained with the policy/rule version it governs; this evidence is recorded on 2026-09-13.
-5. Accounting approval records approver, date, immutable evidence reference, and the rule/policy version it governs.
+5. Accounting approval records approver, role, date, evidence reference, source hash, decision references, and immutable Rule `PAID_EXPENSE v1`.
 
-Until these conditions are met, do not freeze idempotency, fingerprint, exactly-once effect, atomic posting, concurrency, retry, or rollback contracts. M2 remains `NOT READY / NOT AUTHORIZED`.
+Engineering Contract Freeze has not started in this update. M2 remains `NOT READY / NOT AUTHORIZED` until the separate Engineering Freeze and its required evidence are completed.
