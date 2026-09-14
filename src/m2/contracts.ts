@@ -3,7 +3,7 @@ import type { AccountingProfile } from "../domain/accounting/profiles.ts";
 import type { ContentHash, EconomicGroupId, EventRelationshipId, FinancialEventId, IdempotencyKey, OrganizationId, RequestId, TraceId, Uuid } from "../domain/common/ids.ts";
 import type { Money } from "../domain/common/money.ts";
 import type { IsoDate, Rfc3339Timestamp } from "../domain/common/time.ts";
-import type { EvidenceRef, EventRelationship, ExpenseCategory, ExpenseRecognizedEvent, FinancialEvent, PaymentMadeEvent, PaymentSourceType, SourceRef } from "../domain/events/financial-event.ts";
+import type { ApprovalLevel, EvidenceRef, EventRelationship, ExpenseCategory, ExpenseRecognizedEvent, FinancialEvent, PaymentMadeEvent, PaymentSourceType, SourceRef } from "../domain/events/financial-event.ts";
 import type { ActorRef, OrganizationRole } from "../domain/organizations/organization.ts";
 import type { AccountingPeriod } from "../domain/periods/periods.ts";
 
@@ -168,6 +168,77 @@ export interface AuthorizationDecision {
   };
 }
 
+/**
+ * Server-authoritative envelope around a policy decision.  This is deliberately
+ * separate from the DTO: a client can name a decision, but cannot manufacture
+ * the authority record which binds and attests to it.
+ */
+export interface TrustedAuthorizationDecisionRecord {
+  readonly record_contract_version: "wendy.paid-expense.trusted-authorization/1.0.0";
+  readonly authorization: AuthorizationDecision;
+  readonly affected_effect: {
+    readonly economic_group_id: EconomicGroupId;
+    readonly fulfills_relationship_id: EventRelationshipId;
+    readonly event_refs: readonly [EventVersionRef, EventVersionRef];
+    readonly source_request_id: RequestId;
+    readonly required_approval_level: ApprovalLevel;
+  };
+  readonly originator: ActorRef;
+  readonly deciding_authority: {
+    readonly actor: ActorRef;
+    readonly capability_evidence_ref: string;
+    readonly authority_provenance_ref: string;
+  };
+  readonly immutable_evidence_provenance_ref: string;
+  readonly integrity_provenance_hash: ContentHash;
+  readonly recorded_at: Rfc3339Timestamp;
+  readonly supersedes_authorization_decision_id: Uuid | null;
+}
+
+/** The T-01 DTO plus server-authoritative reviewer/capability attestation. */
+export interface TrustedTaxImpactEligibilityDecisionRecord {
+  readonly record_contract_version: "wendy.paid-expense.trusted-tax-impact-eligibility/1.0.0";
+  readonly decision: TaxImpactEligibilityDecision;
+  readonly reviewer_authority: {
+    readonly actor: ActorRef;
+    readonly capability_evidence_ref: string;
+    readonly authority_provenance_ref: string;
+  };
+  readonly immutable_evidence_provenance_ref: string;
+  readonly integrity_provenance_hash: ContentHash;
+  readonly recorded_at: Rfc3339Timestamp;
+}
+
+/** Immutable snapshot attached to the exact Journal transaction that consumed it. */
+export interface ConsumedDecisionProvenance {
+  readonly provenance_id: Uuid;
+  readonly organization_id: OrganizationId;
+  readonly journal_entry_id: Uuid;
+  readonly authorization: {
+    readonly authorization_decision_id: Uuid;
+    readonly requested_operation: AuthorizationDecision["requested_operation"];
+    readonly decision: AuthorizationOutcome;
+    readonly policy_version_refs: readonly string[];
+    readonly authorization_evidence_ref: string;
+    readonly integrity_provenance_hash: ContentHash;
+    readonly deciding_actor: ActorRef;
+    readonly capability_evidence_ref: string;
+  };
+  readonly tax_impact: {
+    readonly tax_impact_eligibility_decision_id: Uuid;
+    readonly decision_version: number;
+    readonly policy_version: TaxImpactEligibilityDecision["policy_version"];
+    readonly outcome: TaxImpactEligibilityOutcome;
+    readonly decision_provenance_hash: ContentHash;
+    readonly integrity_provenance_hash: ContentHash;
+    readonly reviewer: ActorRef;
+    readonly capability_evidence_ref: string;
+    readonly evidence_reference: string;
+  };
+  readonly consumed_at: Rfc3339Timestamp;
+  readonly posting_transaction_ref: string;
+}
+
 export interface PeriodAuthorizationDecision {
   readonly contract_version: "wendy.paid-expense.period-authorization/1.0.0";
   readonly period_authorization_decision_id: Uuid;
@@ -267,8 +338,9 @@ export interface OriginalPostingCommand {
   readonly accounting_profile: AccountingProfile;
   readonly accounting_period: AccountingPeriod;
   readonly period_authorization: PeriodAuthorizationDecision;
-  readonly authorization: AuthorizationDecision;
-  readonly tax_impact_eligibility: TaxImpactEligibilityDecision;
+  /** Opaque client references. The Ledger loads authoritative records itself. */
+  readonly authorization_decision_id: Uuid;
+  readonly tax_impact_eligibility_decision_id: Uuid;
   readonly category_mappings: readonly CategoryAccountMapping[];
   readonly payment_source_mappings: readonly PaymentSourceAccountMapping[];
   readonly validation_result_ref: Uuid;
@@ -286,7 +358,8 @@ export interface CorrectionPostingCommand {
   readonly original_journal_entry_id: Uuid;
   readonly reason: string;
   readonly source_evidence_refs: readonly EvidenceRef[];
-  readonly authorization: AuthorizationDecision;
+  /** Opaque client reference to a separately issued correction authority decision. */
+  readonly authorization_decision_id: Uuid;
   readonly reversal_accounting_period: AccountingPeriod;
   readonly reversal_period_authorization: PeriodAuthorizationDecision;
   readonly replacement: OriginalPostingCommand;

@@ -30,14 +30,21 @@ import {
   decidePaidExpenseAuthorization,
   financialEventFingerprint,
   taxImpactEligibilityDecisionHash,
+  trustedAuthorizationRecordHash,
+  trustedTaxImpactEligibilityRecordHash,
+  InMemoryTrustedDecisionAuthority,
   type AuthorizationDecision,
   type CapabilityGrant,
   type CategoryAccountMapping,
   type OriginalPostingCommand,
+  type CorrectionPostingCommand,
+  type PostedJournal,
   type PaidExpensePair,
   type PaymentSourceAccountMapping,
   type PeriodAuthorizationDecision,
   type TaxImpactEligibilityDecision,
+  type TrustedAuthorizationDecisionRecord,
+  type TrustedTaxImpactEligibilityDecisionRecord,
 } from "../src/m2/index.ts";
 import { expenseEvent, fulfillsRelationship, ids, paymentEvent, user } from "./m1-fixtures.ts";
 
@@ -275,8 +282,8 @@ export function postingCommand(overrides: Partial<OriginalPostingCommand> = {}):
     accounting_profile: accountingProfile,
     accounting_period: selectedPeriod,
     period_authorization: periodAuthorization(pair, selectedPeriod),
-    authorization: overrides.authorization ?? authorization("POST_PAID_EXPENSE", user, user, pair),
-    tax_impact_eligibility: taxDecision(pair),
+    authorization_decision_id: m2Ids.authorization,
+    tax_impact_eligibility_decision_id: m2Ids.taxDecision,
     category_mappings: [categoryMapping],
     payment_source_mappings: [paymentMapping],
     validation_result_ref: m2Ids.validation,
@@ -284,6 +291,80 @@ export function postingCommand(overrides: Partial<OriginalPostingCommand> = {}):
     requested_at: ids.timestamp,
     ...overrides,
   });
+}
+
+/** Server-only fixture authority setup. Commands contain only the opaque IDs. */
+export function registerTrustedOriginal(authority: InMemoryTrustedDecisionAuthority, command: OriginalPostingCommand, taxOverride?: TaxImpactEligibilityDecision): void {
+  if (authority.loadAuthorization(command.authorization_decision_id) === undefined) {
+    const decision = decidePaidExpenseAuthorization({
+      organization_id: command.organization_id,
+      source_request_id: command.request_id,
+      actor: user,
+      originator: command.requester,
+      requested_operation: "POST_PAID_EXPENSE",
+      affected_event_refs: [
+        { event_id: command.pair.expense.event_id, event_version: command.pair.expense.event_version, event_type: "ExpenseRecognized" },
+        { event_id: command.pair.payment.event_id, event_version: command.pair.payment.event_version, event_type: "PaymentMade" },
+      ],
+      evaluated_at: command.requested_at,
+      authorization_decision_id: command.authorization_decision_id,
+      candidate_actor_ids_ref: "candidate-set:fixture",
+      independent_eligible_actor_ids_ref: "eligible-set:fixture",
+    }, grants);
+    const unsigned = {
+      record_contract_version: "wendy.paid-expense.trusted-authorization/1.0.0" as const,
+      authorization: decision,
+      affected_effect: { economic_group_id: command.pair.expense.economic_group_id, fulfills_relationship_id: command.pair.fulfills_relationship.relationship_id, event_refs: [
+        { event_id: command.pair.expense.event_id, event_version: command.pair.expense.event_version, event_type: "ExpenseRecognized" as const },
+        { event_id: command.pair.payment.event_id, event_version: command.pair.payment.event_version, event_type: "PaymentMade" as const },
+      ] as const, source_request_id: command.request_id, required_approval_level: command.pair.expense.approval.required_level },
+      originator: command.requester,
+      deciding_authority: { actor: user, capability_evidence_ref: "membership:user", authority_provenance_ref: "authority:fixture:authorization" },
+      immutable_evidence_provenance_ref: "evidence:fixture:authorization",
+      recorded_at: command.requested_at,
+      supersedes_authorization_decision_id: null,
+    };
+    authority.registerAuthorization(Object.freeze({ ...unsigned, integrity_provenance_hash: trustedAuthorizationRecordHash(unsigned) }) as TrustedAuthorizationDecisionRecord);
+  }
+  if (authority.loadTaxImpactEligibility(command.tax_impact_eligibility_decision_id) === undefined) {
+    const decision = taxOverride ?? taxDecision(command.pair, "NO_SEPARATE_ACCOUNTING_IMPACT_CONFIRMED", command.tax_impact_eligibility_decision_id);
+    const unsigned = {
+      record_contract_version: "wendy.paid-expense.trusted-tax-impact-eligibility/1.0.0" as const,
+      decision,
+      reviewer_authority: { actor: reviewerActor, capability_evidence_ref: "membership:tax-reviewer", authority_provenance_ref: "authority:fixture:tax" },
+      immutable_evidence_provenance_ref: "evidence:fixture:tax",
+      recorded_at: command.requested_at,
+    };
+    authority.registerTaxImpactEligibility(Object.freeze({ ...unsigned, integrity_provenance_hash: trustedTaxImpactEligibilityRecordHash(unsigned) }) as TrustedTaxImpactEligibilityDecisionRecord);
+  }
+}
+
+export function registerTrustedCorrection(authority: InMemoryTrustedDecisionAuthority, command: CorrectionPostingCommand, original: PostedJournal): void {
+  registerTrustedOriginal(authority, command.replacement);
+  if (authority.loadAuthorization(command.authorization_decision_id) !== undefined) return;
+  const decision = decidePaidExpenseAuthorization({
+    organization_id: command.organization_id,
+    source_request_id: command.request_id,
+    actor: accountantActor,
+    originator: command.requester,
+    requested_operation: "PAID_EXPENSE_CORRECTION",
+    affected_event_refs: original.immutable_draft.event_refs,
+    evaluated_at: command.requested_at,
+    authorization_decision_id: command.authorization_decision_id,
+    candidate_actor_ids_ref: "candidate-set:accountant",
+    independent_eligible_actor_ids_ref: "eligible-set:accountant",
+  }, grants);
+  const unsigned = {
+    record_contract_version: "wendy.paid-expense.trusted-authorization/1.0.0" as const,
+    authorization: decision,
+    affected_effect: { economic_group_id: original.immutable_draft.economic_group_id, fulfills_relationship_id: original.immutable_draft.fulfills_relationship_ref, event_refs: original.immutable_draft.event_refs, source_request_id: command.request_id, required_approval_level: "USER_CONFIRM" as const },
+    originator: command.requester,
+    deciding_authority: { actor: accountantActor, capability_evidence_ref: "membership:accountant", authority_provenance_ref: "authority:fixture:correction" },
+    immutable_evidence_provenance_ref: "evidence:fixture:correction",
+    recorded_at: command.requested_at,
+    supersedes_authorization_decision_id: null,
+  };
+  authority.registerAuthorization(Object.freeze({ ...unsigned, integrity_provenance_hash: trustedAuthorizationRecordHash(unsigned) }) as TrustedAuthorizationDecisionRecord);
 }
 
 export function replacementPair(): PaidExpensePair {

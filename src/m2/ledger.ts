@@ -5,14 +5,15 @@ import type { ActorRef } from "../domain/organizations/organization.ts";
 import { createEventRelationship } from "../domain/events/financial-event.ts";
 
 import { deepFreeze, newM2Uuid, sha256Canonical } from "./canonical.ts";
-import { assertAuthorizationDecisionAllowed, assertLedgerServiceCapability } from "./authorization.ts";
+import { assertLedgerServiceCapability } from "./authorization.ts";
+import { trustedAuthorizationRecordHash, trustedTaxImpactEligibilityRecordHash, type TrustedDecisionAuthority } from "./decision-authority.ts";
 import {
   ENGINEERING_CONTRACT_VERSION,
   PAID_EXPENSE_EFFECT_FINGERPRINT_VERSION,
   PAID_EXPENSE_RULE_ID,
   PAID_EXPENSE_RULE_VERSION,
-  type AuthorizationDecision,
   type CapabilityGrant,
+  type ConsumedDecisionProvenance,
   type CorrectionCase,
   type CorrectionPostingCommand,
   type JournalDraft,
@@ -22,6 +23,8 @@ import {
   type PostedJournal,
   type PostingResult,
   type TaxImpactEligibilityConsumption,
+  type TrustedAuthorizationDecisionRecord,
+  type TrustedTaxImpactEligibilityDecisionRecord,
 } from "./contracts.ts";
 import { M2ContractError } from "./errors.ts";
 import { canonicalRequestInputHash, validatePaidExpensePair, type ValidatedPaidExpensePair } from "./fingerprints.ts";
@@ -86,18 +89,19 @@ interface LedgerState {
   readonly reversals: Map<string, Uuid>;
   readonly corrections: Map<string, CorrectionCase>;
   readonly audits: Map<string, M2AuditRecord>;
+  readonly consumed_decisions: Map<string, ConsumedDecisionProvenance>;
   readonly periods: Map<string, AccountingPeriod>;
 }
 
 function emptyState(): LedgerState {
   return {
-    idempotency: new Map(), effects: new Map(), event_fingerprints: new Map(), fingerprint_diagnostics: new Map(), source_claims: new Map(), journals: new Map(), reversals: new Map(), corrections: new Map(), audits: new Map(), periods: new Map(),
+    idempotency: new Map(), effects: new Map(), event_fingerprints: new Map(), fingerprint_diagnostics: new Map(), source_claims: new Map(), journals: new Map(), reversals: new Map(), corrections: new Map(), audits: new Map(), consumed_decisions: new Map(), periods: new Map(),
   };
 }
 
 function cloneState(state: LedgerState): LedgerState {
   return {
-    idempotency: new Map(state.idempotency), effects: new Map(state.effects), event_fingerprints: new Map(state.event_fingerprints), fingerprint_diagnostics: new Map(state.fingerprint_diagnostics), source_claims: new Map(state.source_claims), journals: new Map(state.journals), reversals: new Map(state.reversals), corrections: new Map(state.corrections), audits: new Map(state.audits), periods: new Map(state.periods),
+    idempotency: new Map(state.idempotency), effects: new Map(state.effects), event_fingerprints: new Map(state.event_fingerprints), fingerprint_diagnostics: new Map(state.fingerprint_diagnostics), source_claims: new Map(state.source_claims), journals: new Map(state.journals), reversals: new Map(state.reversals), corrections: new Map(state.corrections), audits: new Map(state.audits), consumed_decisions: new Map(state.consumed_decisions), periods: new Map(state.periods),
   };
 }
 
@@ -135,6 +139,8 @@ export interface LedgerTransaction {
   putReversal(original_journal_id: Uuid, reversal_journal_id: Uuid): void;
   putCorrection(correction: CorrectionCase): void;
   putAudit(audit: M2AuditRecord): void;
+  getConsumedDecisionProvenance(journal_entry_id: Uuid): ConsumedDecisionProvenance | undefined;
+  putConsumedDecisionProvenance(provenance: ConsumedDecisionProvenance): void;
 }
 
 /** Storage port: implementations must provide a serializable transaction and the frozen unique identities. */
@@ -209,6 +215,12 @@ class MemoryLedgerTransaction implements LedgerTransaction {
     if (this.state.audits.has(audit.audit_id)) throw new M2ContractError("IMMUTABLE_HISTORY", "audit record already exists", "AUDIT_RECORD_IMMUTABLE");
     this.state.audits.set(audit.audit_id, deepFreeze(audit));
   }
+  getConsumedDecisionProvenance(journal_entry_id: Uuid): ConsumedDecisionProvenance | undefined { return this.state.consumed_decisions.get(journal_entry_id); }
+  putConsumedDecisionProvenance(provenance: ConsumedDecisionProvenance): void {
+    this.write();
+    if (this.state.consumed_decisions.has(provenance.journal_entry_id)) throw new M2ContractError("IMMUTABLE_HISTORY", "Journal decision provenance already exists", "CONSUMED_DECISION_PROVENANCE_IMMUTABLE");
+    this.state.consumed_decisions.set(provenance.journal_entry_id, deepFreeze(provenance));
+  }
 }
 
 /**
@@ -251,8 +263,8 @@ export class InMemorySerializableLedgerStore implements SerializableLedgerStore 
     await this.serializable((transaction) => transaction.putPeriod(period));
   }
 
-  snapshot(): Readonly<{ readonly journals: readonly PostedJournal[]; readonly effects: number; readonly idempotency: readonly IdempotencyRecord[]; readonly corrections: readonly CorrectionCase[]; readonly audits: readonly M2AuditRecord[]; readonly fingerprint_diagnostics: readonly FingerprintCollisionDiagnostic[] }> {
-    return deepFreeze({ journals: [...this.#state.journals.values()], effects: this.#state.effects.size, idempotency: [...this.#state.idempotency.values()], corrections: [...this.#state.corrections.values()], audits: [...this.#state.audits.values()], fingerprint_diagnostics: [...this.#state.fingerprint_diagnostics.values()] });
+  snapshot(): Readonly<{ readonly journals: readonly PostedJournal[]; readonly effects: number; readonly idempotency: readonly IdempotencyRecord[]; readonly corrections: readonly CorrectionCase[]; readonly audits: readonly M2AuditRecord[]; readonly consumed_decisions: readonly ConsumedDecisionProvenance[]; readonly fingerprint_diagnostics: readonly FingerprintCollisionDiagnostic[] }> {
+    return deepFreeze({ journals: [...this.#state.journals.values()], effects: this.#state.effects.size, idempotency: [...this.#state.idempotency.values()], corrections: [...this.#state.corrections.values()], audits: [...this.#state.audits.values()], consumed_decisions: [...this.#state.consumed_decisions.values()], fingerprint_diagnostics: [...this.#state.fingerprint_diagnostics.values()] });
   }
 }
 
@@ -260,6 +272,8 @@ interface PreparedOriginal {
   readonly command: OriginalPostingCommand;
   readonly validated_pair: ValidatedPaidExpensePair;
   readonly draft: JournalDraft;
+  readonly trusted_authorization: TrustedAuthorizationDecisionRecord;
+  readonly trusted_tax_impact: TrustedTaxImpactEligibilityDecisionRecord;
   readonly request_hash: ContentHash;
   readonly namespace: string;
 }
@@ -324,15 +338,18 @@ export class LedgerPostingService {
   private readonly store: SerializableLedgerStore;
   private readonly ledger_service_actor: ActorRef;
   private readonly capability_grants: readonly CapabilityGrant[];
+  private readonly decision_authority: TrustedDecisionAuthority;
 
   constructor(
     store: SerializableLedgerStore,
     ledger_service_actor: ActorRef,
     capability_grants: readonly CapabilityGrant[],
+    decision_authority: TrustedDecisionAuthority,
   ) {
     this.store = store;
     this.ledger_service_actor = ledger_service_actor;
     this.capability_grants = capability_grants;
+    this.decision_authority = decision_authority;
   }
 
   private assertLedgerWriter(organization_id: OrganizationId): void {
@@ -348,14 +365,59 @@ export class LedgerPostingService {
     if (grant === undefined) throw new WendyDomainError("RULE_VIOLATION", "posting requester lacks an active server-side submit capability", { rule_id: "M2-AUTH-001" });
   }
 
-  private assertAuthorizationBindsPair(command: OriginalPostingCommand): void {
-    const audit = command.authorization.approval_control_audit;
+  private assertNoCallerDecisionPayload(command: OriginalPostingCommand): void {
+    const candidate = command as unknown as Record<string, unknown>;
+    if ("authorization" in candidate || "tax_impact_eligibility" in candidate) {
+      throw new WendyDomainError("RULE_VIOLATION", "caller-supplied authorization or T-01 decision payload is prohibited", { rule_id: "M2-AUTH-TRUST-001" });
+    }
+  }
+
+  private assertAuthorizationBindsPair(command: OriginalPostingCommand, trusted: TrustedAuthorizationDecisionRecord): void {
+    const authorization = trusted.authorization;
+    const audit = authorization.approval_control_audit;
     const expected = [...eventRefs(command.pair)].sort((left, right) => left.event_type.localeCompare(right.event_type));
     const actual = [...audit.affected_event_refs].sort((left, right) => left.event_type.localeCompare(right.event_type));
     const exact = actual.length === expected.length && actual.every((reference, index) => reference.event_id === expected[index]?.event_id && reference.event_version === expected[index]?.event_version && reference.event_type === expected[index]?.event_type);
-    if (command.authorization.independent_approver_resolution.originator_actor_id !== command.requester.actor_id || !exact) {
+    const pairApprovalLevel = command.pair.expense.approval.required_level;
+    const samePairApproval = command.pair.payment.approval.required_level === pairApprovalLevel;
+    if (trusted.integrity_provenance_hash !== trustedAuthorizationRecordHash(trusted)
+      || authorization.authorization_decision_id !== command.authorization_decision_id
+      || authorization.organization_id !== command.organization_id
+      || authorization.requested_operation !== "POST_PAID_EXPENSE"
+      || authorization.decision !== "ALLOWED"
+      || authorization.independent_approver_resolution.originator_actor_id !== command.requester.actor_id
+      || trusted.originator.actor_id !== command.requester.actor_id
+      || trusted.affected_effect.source_request_id !== command.request_id
+      || trusted.affected_effect.economic_group_id !== command.pair.expense.economic_group_id
+      || trusted.affected_effect.fulfills_relationship_id !== command.pair.fulfills_relationship.relationship_id
+      || trusted.affected_effect.required_approval_level !== pairApprovalLevel
+      || !samePairApproval
+      || !exact) {
       throw new WendyDomainError("RULE_VIOLATION", "posting authorization must bind the canonical requester and exact Financial Event versions", { rule_id: "M2-AUTH-002" });
     }
+  }
+
+  private loadTrustedOriginalDecisions(command: OriginalPostingCommand): { readonly authorization: TrustedAuthorizationDecisionRecord; readonly tax: TrustedTaxImpactEligibilityDecisionRecord } {
+    this.assertNoCallerDecisionPayload(command);
+    const authorization = this.decision_authority.loadAuthorization(command.authorization_decision_id);
+    if (authorization === undefined || authorization.status !== "ACTIVE") throw new WendyDomainError("RULE_VIOLATION", "trusted authorization decision is missing or superseded", { rule_id: "M2-AUTH-TRUST-002" });
+    const tax = this.decision_authority.loadTaxImpactEligibility(command.tax_impact_eligibility_decision_id);
+    if (tax === undefined || tax.status !== "ACTIVE") throw new WendyDomainError("REVIEW_REQUIRED", "trusted tax-impact eligibility decision is missing or superseded", { rule_id: "M2-TAX-TRUST-001" });
+    const authorizationGrant = this.capability_grants.find((grant) => grant.organization_id === command.organization_id
+      && grant.actor_id === authorization.record.deciding_authority.actor.actor_id
+      && grant.membership_status === "ACTIVE"
+      && grant.membership_evidence_ref === authorization.record.deciding_authority.capability_evidence_ref
+      && grant.capabilities.includes("PAID_EXPENSE_SUBMIT"));
+    if (authorization.record.integrity_provenance_hash !== trustedAuthorizationRecordHash(authorization.record) || authorizationGrant === undefined) throw new WendyDomainError("RULE_VIOLATION", "trusted authorization issuer or provenance is invalid", { rule_id: "M2-AUTH-TRUST-003" });
+    const taxGrant = this.capability_grants.find((grant) => grant.organization_id === command.organization_id
+      && grant.actor_id === tax.record.reviewer_authority.actor.actor_id
+      && grant.membership_status === "ACTIVE"
+      && grant.membership_evidence_ref === tax.record.reviewer_authority.capability_evidence_ref
+      && grant.capabilities.includes("PAID_EXPENSE_TAX_IMPACT_ELIGIBILITY_REVIEW"));
+    if (tax.record.integrity_provenance_hash !== trustedTaxImpactEligibilityRecordHash(tax.record)
+      || tax.record.reviewer_authority.actor.actor_id !== tax.record.decision.accounting_reviewer.actor.actor_id
+      || taxGrant === undefined) throw new WendyDomainError("REVIEW_REQUIRED", "trusted tax-impact eligibility provenance is invalid", { rule_id: "M2-TAX-TRUST-002" });
+    return Object.freeze({ authorization: authorization.record, tax: tax.record });
   }
 
   private prepare(command: OriginalPostingCommand): PreparedOriginal | PostingResult {
@@ -366,9 +428,9 @@ export class LedgerPostingService {
       event_refs: eventRefs(command.pair),
       relationship_id: command.pair.fulfills_relationship.relationship_id,
       economic_group_id: command.pair.expense.economic_group_id,
-      approval_decision_id: command.authorization.authorization_decision_id,
+      approval_decision_id: command.authorization_decision_id,
       period_authorization_id: command.period_authorization.period_authorization_decision_id,
-      tax_decision_id: command.tax_impact_eligibility.tax_impact_eligibility_decision_id,
+      tax_decision_id: command.tax_impact_eligibility_decision_id,
       accounting_rule_version: PAID_EXPENSE_RULE_VERSION,
       confirmation_audit_ref: command.confirmation_audit_ref,
       validation_result_ref: command.validation_result_ref,
@@ -377,10 +439,10 @@ export class LedgerPostingService {
       this.assertLedgerWriter(command.organization_id);
       if (command.organization_id !== command.pair.expense.organization_id || command.organization_id !== command.pair.payment.organization_id || command.organization_id !== command.accounting_profile.organization_id || command.organization_id !== command.accounting_period.organization_id) throw new WendyDomainError("RULE_VIOLATION", "PAID_EXPENSE command crosses an organization boundary", { rule_id: "M2-ORG-001" });
       this.assertRequesterCanSubmit(command);
-      assertAuthorizationDecisionAllowed(command.authorization, command.organization_id, ["POST_PAID_EXPENSE"]);
-      this.assertAuthorizationBindsPair(command);
+      const trusted = this.loadTrustedOriginalDecisions(command);
+      this.assertAuthorizationBindsPair(command, trusted.authorization);
       const validated_pair = validatePaidExpensePair(command.pair);
-      const tax = validateTaxImpactEligibility(command.tax_impact_eligibility, command.pair, this.capability_grants);
+      const tax = validateTaxImpactEligibility(trusted.tax.decision, command.pair, this.capability_grants);
       if (!tax.allowed) return postingResult({ organization_id: command.organization_id, namespace: namespace(command.organization_id, command.operation), idempotency_key: command.idempotency_key, trace_id: command.trace_id, outcome: "REVIEW_REQUIRED", reason_codes: tax.reason_codes, effect: validated_pair.effect_fingerprint.value, period_ref: command.period_authorization.period_authorization_decision_id });
       const category_mapping = resolveCategoryAccount({ organization_id: command.organization_id, expense_category: command.pair.expense.payload.expense_category, effective_accounting_date: command.pair.expense.effective_date, mappings: command.category_mappings });
       const payment_source_mapping = resolvePaymentSourceAccount({ organization_id: command.organization_id, payment_source_id: command.pair.payment.payload.payment_source_ref.payment_source_id, payment_source_type: command.pair.payment.payload.payment_source_ref.source_type, effective_accounting_date: command.pair.expense.effective_date, mappings: command.payment_source_mappings });
@@ -390,8 +452,8 @@ export class LedgerPostingService {
       const category = exactMapping(command.category_mappings, category_mapping.mapping_id);
       const payment = exactMapping(command.payment_source_mappings, payment_source_mapping.mapping_id);
       if (category === undefined || payment === undefined) throw new WendyDomainError("REVIEW_REQUIRED", "exact mapping provenance cannot be reconstructed", { rule_id: "M2-MAP-005" });
-      const draft = buildPaidExpenseJournalDraft({ pair: command.pair, effect_fingerprint: validated_pair.effect_fingerprint, category_mapping, payment_source_mapping, expense_account: category.account, cash_or_bank_account: payment.account, tax_decision: command.tax_impact_eligibility, authorization: command.authorization, period_authorization: command.period_authorization, validation_result_ref: command.validation_result_ref, confirmation_audit_ref: command.confirmation_audit_ref, trace_id: command.trace_id });
-      return Object.freeze({ command, validated_pair, draft, request_hash, namespace: namespace(command.organization_id, command.operation) });
+      const draft = buildPaidExpenseJournalDraft({ pair: command.pair, effect_fingerprint: validated_pair.effect_fingerprint, category_mapping, payment_source_mapping, expense_account: category.account, cash_or_bank_account: payment.account, tax_decision: trusted.tax.decision, authorization: trusted.authorization.authorization, period_authorization: command.period_authorization, validation_result_ref: command.validation_result_ref, confirmation_audit_ref: command.confirmation_audit_ref, trace_id: command.trace_id });
+      return Object.freeze({ command, validated_pair, draft, trusted_authorization: trusted.authorization, trusted_tax_impact: trusted.tax, request_hash, namespace: namespace(command.organization_id, command.operation) });
     } catch (error) {
       return resultFromDomainError(error, command, request_hash);
     }
@@ -419,14 +481,14 @@ export class LedgerPostingService {
     this.assertLedgerWriter(command.organization_id);
     const prepared = this.prepare(command);
     if ("outcome" in prepared) {
-      const requestHash = canonicalRequestInputHash({ organization_id: command.organization_id, operation: command.operation, actor_id: command.requester.actor_id, event_refs: eventRefs(command.pair), relationship_id: command.pair.fulfills_relationship.relationship_id, economic_group_id: command.pair.expense.economic_group_id, approval_decision_id: command.authorization.authorization_decision_id, period_authorization_id: command.period_authorization.period_authorization_decision_id, tax_decision_id: command.tax_impact_eligibility.tax_impact_eligibility_decision_id, accounting_rule_version: PAID_EXPENSE_RULE_VERSION, confirmation_audit_ref: command.confirmation_audit_ref, validation_result_ref: command.validation_result_ref });
+      const requestHash = canonicalRequestInputHash({ organization_id: command.organization_id, operation: command.operation, actor_id: command.requester.actor_id, event_refs: eventRefs(command.pair), relationship_id: command.pair.fulfills_relationship.relationship_id, economic_group_id: command.pair.expense.economic_group_id, approval_decision_id: command.authorization_decision_id, period_authorization_id: command.period_authorization.period_authorization_decision_id, tax_decision_id: command.tax_impact_eligibility_decision_id, accounting_rule_version: PAID_EXPENSE_RULE_VERSION, confirmation_audit_ref: command.confirmation_audit_ref, validation_result_ref: command.validation_result_ref });
       return this.persistTerminalNoEffect(command, requestHash, prepared);
     }
     return this.store.serializable((transaction) => this.postPrepared(transaction, prepared));
   }
 
   private postPrepared(transaction: LedgerTransaction, prepared: PreparedOriginal): PostingResult {
-    const { command, request_hash, namespace: idempotency_namespace, draft, validated_pair } = prepared;
+    const { command, request_hash, namespace: idempotency_namespace, draft, validated_pair, trusted_authorization, trusted_tax_impact } = prepared;
     const existing = transaction.getIdempotency(command.organization_id, command.operation, command.idempotency_key);
     if (existing !== undefined) return this.replayOrConflict(existing, command, request_hash);
     transaction.putIdempotency({ organization_id: command.organization_id, operation: command.operation, idempotency_key: command.idempotency_key, namespace: idempotency_namespace, owner_actor_id: command.requester.actor_id, canonical_request_input_hash: request_hash, state: "IN_PROGRESS", result: null, created_at: command.requested_at, completed_at: null });
@@ -451,7 +513,7 @@ export class LedgerPostingService {
     }
     const journal_entry_id = newM2Uuid();
     const transaction_ref = `ledger-tx:${newM2Uuid()}`;
-    const consumption: TaxImpactEligibilityConsumption = deepFreeze({ tax_impact_eligibility_decision_id: command.tax_impact_eligibility.tax_impact_eligibility_decision_id, decision_version: command.tax_impact_eligibility.decision_version, decision_provenance_hash: command.tax_impact_eligibility.decision_provenance_hash, organization_id: command.organization_id, economic_group_id: command.pair.expense.economic_group_id, event_refs: draft.event_refs, accounting_rule: draft.accounting_rule, journal_entry_id, consumed_at: command.requested_at, posting_transaction_ref: transaction_ref });
+    const consumption: TaxImpactEligibilityConsumption = deepFreeze({ tax_impact_eligibility_decision_id: trusted_tax_impact.decision.tax_impact_eligibility_decision_id, decision_version: trusted_tax_impact.decision.decision_version, decision_provenance_hash: trusted_tax_impact.decision.decision_provenance_hash, organization_id: command.organization_id, economic_group_id: command.pair.expense.economic_group_id, event_refs: draft.event_refs, accounting_rule: draft.accounting_rule, journal_entry_id, consumed_at: command.requested_at, posting_transaction_ref: transaction_ref });
     const result = postingResult({ organization_id: command.organization_id, namespace: idempotency_namespace, idempotency_key: command.idempotency_key, trace_id: command.trace_id, outcome: "POSTED", reason_codes: ["POSTED_EXACTLY_ONCE"], effect: validated_pair.effect_fingerprint.value, journal: journal_entry_id, period_ref: command.period_authorization.period_authorization_decision_id, transaction_ref });
     const journal: PostedJournal = deepFreeze({ journal_entry_id, organization_id: command.organization_id, journal_kind: "ORIGINAL", original_journal_entry_id: null, immutable_draft: draft, committed_at: command.requested_at, committed_transaction_ref: transaction_ref, tax_impact_consumption: consumption });
     transaction.putEffect({ organization_id: command.organization_id, contract_version: PAID_EXPENSE_EFFECT_FINGERPRINT_VERSION, fingerprint: validated_pair.effect_fingerprint.value, canonical_preimage: validated_pair.effect_fingerprint.canonical_preimage, journal_entry_id, result });
@@ -459,6 +521,7 @@ export class LedgerPostingService {
     transaction.putEventFingerprint({ organization_id: command.organization_id, fingerprint: validated_pair.payment_event_fingerprint.value, canonical_preimage: validated_pair.payment_event_fingerprint.canonical_preimage });
     for (const tuple of sourceTuples(command.pair)) transaction.putSourceClaim({ organization_id: command.organization_id, source_tuple: tuple, effect_fingerprint: validated_pair.effect_fingerprint.value });
     transaction.putJournal(journal);
+    transaction.putConsumedDecisionProvenance(this.decisionProvenance(journal_entry_id, command.requested_at, transaction_ref, trusted_authorization, trusted_tax_impact));
     transaction.putAudit(this.audit(command.organization_id, "POST_PAID_EXPENSE", command.requester, command.request_id, command.trace_id, [journal_entry_id], command.requested_at));
     transaction.putIdempotency({ organization_id: command.organization_id, operation: command.operation, idempotency_key: command.idempotency_key, namespace: idempotency_namespace, owner_actor_id: command.requester.actor_id, canonical_request_input_hash: request_hash, state: "TERMINAL", result, created_at: command.requested_at, completed_at: command.requested_at });
     return result;
@@ -486,16 +549,104 @@ export class LedgerPostingService {
     return deepFreeze({ audit_id: newM2Uuid(), organization_id, action, actor, source_request_id, trace_id, journal_entry_ids: Object.freeze([...journal_entry_ids]), created_at: created_at as M2AuditRecord["created_at"], immutable_payload_hash: sha256Canonical({ organization_id, action, actor_id: actor.actor_id, source_request_id, trace_id, journal_entry_ids, created_at }).hash });
   }
 
+  private decisionProvenance(
+    journal_entry_id: Uuid,
+    consumed_at: OriginalPostingCommand["requested_at"],
+    posting_transaction_ref: string,
+    authorization: TrustedAuthorizationDecisionRecord,
+    tax: TrustedTaxImpactEligibilityDecisionRecord,
+  ): ConsumedDecisionProvenance {
+    return deepFreeze({
+      provenance_id: newM2Uuid(),
+      organization_id: authorization.authorization.organization_id,
+      journal_entry_id,
+      authorization: {
+        authorization_decision_id: authorization.authorization.authorization_decision_id,
+        requested_operation: authorization.authorization.requested_operation,
+        decision: authorization.authorization.decision,
+        policy_version_refs: Object.freeze([...authorization.authorization.policy_version_refs]),
+        authorization_evidence_ref: authorization.authorization.authorization_evidence_ref,
+        integrity_provenance_hash: authorization.integrity_provenance_hash,
+        deciding_actor: authorization.deciding_authority.actor,
+        capability_evidence_ref: authorization.deciding_authority.capability_evidence_ref,
+      },
+      tax_impact: {
+        tax_impact_eligibility_decision_id: tax.decision.tax_impact_eligibility_decision_id,
+        decision_version: tax.decision.decision_version,
+        policy_version: tax.decision.policy_version,
+        outcome: tax.decision.outcome,
+        decision_provenance_hash: tax.decision.decision_provenance_hash,
+        integrity_provenance_hash: tax.integrity_provenance_hash,
+        reviewer: tax.reviewer_authority.actor,
+        capability_evidence_ref: tax.reviewer_authority.capability_evidence_ref,
+        evidence_reference: tax.decision.decision_basis.evidence_reference,
+      },
+      consumed_at,
+      posting_transaction_ref,
+    });
+  }
+
+  private reversalDecisionProvenance(
+    journal_entry_id: Uuid,
+    consumed_at: OriginalPostingCommand["requested_at"],
+    posting_transaction_ref: string,
+    authorization: TrustedAuthorizationDecisionRecord,
+    original: ConsumedDecisionProvenance,
+  ): ConsumedDecisionProvenance {
+    return deepFreeze({
+      ...original,
+      provenance_id: newM2Uuid(),
+      journal_entry_id,
+      authorization: {
+        authorization_decision_id: authorization.authorization.authorization_decision_id,
+        requested_operation: authorization.authorization.requested_operation,
+        decision: authorization.authorization.decision,
+        policy_version_refs: Object.freeze([...authorization.authorization.policy_version_refs]),
+        authorization_evidence_ref: authorization.authorization.authorization_evidence_ref,
+        integrity_provenance_hash: authorization.integrity_provenance_hash,
+        deciding_actor: authorization.deciding_authority.actor,
+        capability_evidence_ref: authorization.deciding_authority.capability_evidence_ref,
+      },
+      consumed_at,
+      posting_transaction_ref,
+    });
+  }
+
+  private correctionAuthorizationBinds(command: CorrectionPostingCommand, trusted: TrustedAuthorizationDecisionRecord, original: PostedJournal): boolean {
+    const authorization = trusted.authorization;
+    const expected = [...original.immutable_draft.event_refs].sort((left, right) => left.event_type.localeCompare(right.event_type));
+    const actual = [...trusted.affected_effect.event_refs].sort((left, right) => left.event_type.localeCompare(right.event_type));
+    const exact = actual.length === expected.length && actual.every((value, index) => value.event_id === expected[index]?.event_id && value.event_version === expected[index]?.event_version && value.event_type === expected[index]?.event_type);
+    return authorization.authorization_decision_id === command.authorization_decision_id
+      && authorization.organization_id === command.organization_id
+      && (authorization.requested_operation === "PAID_EXPENSE_CORRECTION" || authorization.requested_operation === "POST_PAID_EXPENSE_CORRECTION")
+      && authorization.decision === "ALLOWED"
+      && trusted.originator.actor_id === command.requester.actor_id
+      && trusted.affected_effect.source_request_id === command.request_id
+      && trusted.affected_effect.economic_group_id === original.immutable_draft.economic_group_id
+      && trusted.affected_effect.fulfills_relationship_id === original.immutable_draft.fulfills_relationship_ref
+      && exact;
+  }
+
   async postCorrection(command: CorrectionPostingCommand): Promise<PostingResult> {
     this.assertLedgerWriter(command.organization_id);
-    assertAuthorizationDecisionAllowed(command.authorization, command.organization_id, ["PAID_EXPENSE_CORRECTION", "POST_PAID_EXPENSE_CORRECTION"]);
+    this.assertNoCallerDecisionPayload(command.replacement);
+    const correctionAuthorization = this.decision_authority.loadAuthorization(command.authorization_decision_id);
+    const correctionGrant = correctionAuthorization === undefined ? undefined : this.capability_grants.find((grant) => grant.organization_id === command.organization_id
+      && grant.actor_id === correctionAuthorization.record.deciding_authority.actor.actor_id
+      && grant.membership_status === "ACTIVE"
+      && grant.membership_evidence_ref === correctionAuthorization.record.deciding_authority.capability_evidence_ref
+      && grant.capabilities.includes("PAID_EXPENSE_CORRECTION_APPROVAL"));
+    if (correctionAuthorization === undefined || correctionAuthorization.status !== "ACTIVE" || correctionAuthorization.record.integrity_provenance_hash !== trustedAuthorizationRecordHash(correctionAuthorization.record) || correctionGrant === undefined) {
+      return postingResult({ organization_id: command.organization_id, namespace: namespace(command.organization_id, command.operation), idempotency_key: command.idempotency_key, trace_id: command.trace_id, outcome: "REJECTED", reason_codes: ["TRUSTED_CORRECTION_AUTHORIZATION_MISSING_OR_INVALID"] });
+    }
     for (const relationship of command.correction_relationships) createEventRelationship(relationship);
     if (command.reason.trim().length === 0 || command.source_evidence_refs.length === 0 || command.correction_relationships.length === 0 || command.correction_relationships.some((relationship) => relationship.relationship_type !== "REVERSES" && relationship.relationship_type !== "SUPERSEDES") || command.reversal_period_authorization.requested_operation !== "REVERSAL" || command.replacement.period_authorization.requested_operation !== "CORRECTED_REPLACEMENT") {
       return postingResult({ organization_id: command.organization_id, namespace: namespace(command.organization_id, command.operation), idempotency_key: command.idempotency_key, trace_id: command.trace_id, outcome: "REJECTED", reason_codes: ["INVALID_CORRECTION_PROVENANCE"] });
     }
     const replacement = this.prepare(command.replacement);
     if ("outcome" in replacement) return postingResult({ organization_id: command.organization_id, namespace: namespace(command.organization_id, command.operation), idempotency_key: command.idempotency_key, trace_id: command.trace_id, outcome: replacement.outcome, reason_codes: replacement.reason_codes });
-    const correctionHash = sha256Canonical({ organization_id: command.organization_id, operation: command.operation, requester: command.requester.actor_id, original_journal_entry_id: command.original_journal_entry_id, replacement_effect: replacement.validated_pair.effect_fingerprint.value, reason: command.reason, approval_decision_id: command.authorization.authorization_decision_id }).hash;
+    const correctionHash = sha256Canonical({ organization_id: command.organization_id, operation: command.operation, requester: command.requester.actor_id, original_journal_entry_id: command.original_journal_entry_id, replacement_effect: replacement.validated_pair.effect_fingerprint.value, reason: command.reason, approval_decision_id: command.authorization_decision_id }).hash;
     return this.store.serializable((transaction) => {
       const existing = transaction.getIdempotency(command.organization_id, command.operation, command.idempotency_key);
       if (existing !== undefined && existing.state !== "IN_PROGRESS") return this.replayOrConflict(existing, command.replacement, correctionHash);
@@ -508,6 +659,9 @@ export class LedgerPostingService {
         return postingResult({ organization_id: command.organization_id, namespace: namespace(command.organization_id, command.operation), idempotency_key: command.idempotency_key, trace_id: command.trace_id, outcome: "IN_PROGRESS", reason_codes: ["ORIGINAL_JOURNAL_NOT_COMMITTED"] });
       }
       if (original.organization_id !== command.organization_id || original.journal_kind !== "ORIGINAL") return this.completeCorrectionNoEffect(transaction, command, correctionHash, "REJECTED", ["ORIGINAL_JOURNAL_NOT_FOUND"]);
+      const originalDecisionProvenance = transaction.getConsumedDecisionProvenance(original.journal_entry_id);
+      if (originalDecisionProvenance === undefined) return this.completeCorrectionNoEffect(transaction, command, correctionHash, "REJECTED", ["ORIGINAL_DECISION_PROVENANCE_MISSING"]);
+      if (!this.correctionAuthorizationBinds(command, correctionAuthorization.record, original)) return this.completeCorrectionNoEffect(transaction, command, correctionHash, "REJECTED", ["TRUSTED_CORRECTION_AUTHORIZATION_BINDING_MISMATCH"]);
       if (transaction.getReversal(command.original_journal_entry_id) !== undefined) return this.completeCorrectionNoEffect(transaction, command, correctionHash, "REJECTED", ["FULL_REVERSAL_ALREADY_EXISTS"]);
       const originalEventIds = new Set(original.immutable_draft.event_refs.map((reference) => reference.event_id));
       const replacementEventIds = new Set(replacement.draft.event_refs.map((reference) => reference.event_id));
@@ -545,18 +699,20 @@ export class LedgerPostingService {
       const reversalJournalId = newM2Uuid();
       const replacementJournalId = newM2Uuid();
       const transactionRef = `ledger-tx:${newM2Uuid()}`;
-      const reversalDraft: JournalDraft = deepFreeze({ ...original.immutable_draft, journal_draft_id: newM2Uuid(), accounting_date: command.reversal_period_authorization.proposed_accounting_date, posting_date: command.reversal_period_authorization.proposed_posting_date, lines: exactFullReversalLines(original.immutable_draft), provenance: deepFreeze({ ...original.immutable_draft.provenance, period_authorization_ref: command.reversal_period_authorization.period_authorization_decision_id, authorization_decision_ref: command.authorization.authorization_decision_id }) });
-      const replacementConsumption: TaxImpactEligibilityConsumption = deepFreeze({ tax_impact_eligibility_decision_id: command.replacement.tax_impact_eligibility.tax_impact_eligibility_decision_id, decision_version: command.replacement.tax_impact_eligibility.decision_version, decision_provenance_hash: command.replacement.tax_impact_eligibility.decision_provenance_hash, organization_id: command.organization_id, economic_group_id: command.replacement.pair.expense.economic_group_id, event_refs: replacement.draft.event_refs, accounting_rule: replacement.draft.accounting_rule, journal_entry_id: replacementJournalId, consumed_at: command.requested_at, posting_transaction_ref: transactionRef });
+      const reversalDraft: JournalDraft = deepFreeze({ ...original.immutable_draft, journal_draft_id: newM2Uuid(), accounting_date: command.reversal_period_authorization.proposed_accounting_date, posting_date: command.reversal_period_authorization.proposed_posting_date, lines: exactFullReversalLines(original.immutable_draft), provenance: deepFreeze({ ...original.immutable_draft.provenance, period_authorization_ref: command.reversal_period_authorization.period_authorization_decision_id, authorization_decision_ref: command.authorization_decision_id }) });
+      const replacementConsumption: TaxImpactEligibilityConsumption = deepFreeze({ tax_impact_eligibility_decision_id: replacement.trusted_tax_impact.decision.tax_impact_eligibility_decision_id, decision_version: replacement.trusted_tax_impact.decision.decision_version, decision_provenance_hash: replacement.trusted_tax_impact.decision.decision_provenance_hash, organization_id: command.organization_id, economic_group_id: command.replacement.pair.expense.economic_group_id, event_refs: replacement.draft.event_refs, accounting_rule: replacement.draft.accounting_rule, journal_entry_id: replacementJournalId, consumed_at: command.requested_at, posting_transaction_ref: transactionRef });
       const result = postingResult({ organization_id: command.organization_id, namespace: namespace(command.organization_id, command.operation), idempotency_key: command.idempotency_key, trace_id: command.trace_id, outcome: "POSTED", reason_codes: ["CORRECTION_POSTED_ATOMICALLY"], effect: replacement.validated_pair.effect_fingerprint.value, journal: replacementJournalId, period_ref: command.replacement.period_authorization.period_authorization_decision_id, transaction_ref: transactionRef });
       const reversalJournal: PostedJournal = deepFreeze({ journal_entry_id: reversalJournalId, organization_id: command.organization_id, journal_kind: "REVERSAL", original_journal_entry_id: original.journal_entry_id, immutable_draft: reversalDraft, committed_at: command.requested_at, committed_transaction_ref: transactionRef, tax_impact_consumption: original.tax_impact_consumption });
       const replacementJournal: PostedJournal = deepFreeze({ journal_entry_id: replacementJournalId, organization_id: command.organization_id, journal_kind: "CORRECTED_REPLACEMENT", original_journal_entry_id: null, immutable_draft: replacement.draft, committed_at: command.requested_at, committed_transaction_ref: transactionRef, tax_impact_consumption: replacementConsumption });
-      const correction: CorrectionCase = deepFreeze({ contract_version: "wendy.paid-expense.correction-case/1.0.0", correction_case_id: newM2Uuid(), organization_id: command.organization_id, original_journal_entry_id: original.journal_entry_id, reversal_journal_entry_id: reversalJournalId, corrected_replacement_journal_entry_id: replacementJournalId, original_effect_fingerprint: original.immutable_draft.financial_effect_fingerprint.value, replacement_effect_fingerprint: replacement.validated_pair.effect_fingerprint.value, reason: command.reason, source_request_id: command.request_id, requester: command.requester, approval_decision_ref: command.authorization.authorization_decision_id, reversal_period_authorization_ref: command.reversal_period_authorization.period_authorization_decision_id, replacement_period_authorization_ref: command.replacement.period_authorization.period_authorization_decision_id, original_rule_mapping_provenance_ref: `draft:${original.immutable_draft.journal_draft_id}`, replacement_rule_mapping_provenance_ref: `draft:${replacement.draft.journal_draft_id}`, event_relationship_refs: Object.freeze(command.correction_relationships.map((relationship) => relationship.relationship_id)), created_at: command.requested_at });
+      const correction: CorrectionCase = deepFreeze({ contract_version: "wendy.paid-expense.correction-case/1.0.0", correction_case_id: newM2Uuid(), organization_id: command.organization_id, original_journal_entry_id: original.journal_entry_id, reversal_journal_entry_id: reversalJournalId, corrected_replacement_journal_entry_id: replacementJournalId, original_effect_fingerprint: original.immutable_draft.financial_effect_fingerprint.value, replacement_effect_fingerprint: replacement.validated_pair.effect_fingerprint.value, reason: command.reason, source_request_id: command.request_id, requester: command.requester, approval_decision_ref: command.authorization_decision_id, reversal_period_authorization_ref: command.reversal_period_authorization.period_authorization_decision_id, replacement_period_authorization_ref: command.replacement.period_authorization.period_authorization_decision_id, original_rule_mapping_provenance_ref: `draft:${original.immutable_draft.journal_draft_id}`, replacement_rule_mapping_provenance_ref: `draft:${replacement.draft.journal_draft_id}`, event_relationship_refs: Object.freeze(command.correction_relationships.map((relationship) => relationship.relationship_id)), created_at: command.requested_at });
       transaction.putEffect({ organization_id: command.organization_id, contract_version: PAID_EXPENSE_EFFECT_FINGERPRINT_VERSION, fingerprint: replacement.validated_pair.effect_fingerprint.value, canonical_preimage: replacement.validated_pair.effect_fingerprint.canonical_preimage, journal_entry_id: replacementJournalId, result });
       transaction.putEventFingerprint({ organization_id: command.organization_id, fingerprint: replacement.validated_pair.expense_event_fingerprint.value, canonical_preimage: replacement.validated_pair.expense_event_fingerprint.canonical_preimage });
       transaction.putEventFingerprint({ organization_id: command.organization_id, fingerprint: replacement.validated_pair.payment_event_fingerprint.value, canonical_preimage: replacement.validated_pair.payment_event_fingerprint.canonical_preimage });
       for (const tuple of sourceTuples(command.replacement.pair)) transaction.putSourceClaim({ organization_id: command.organization_id, source_tuple: tuple, effect_fingerprint: replacement.validated_pair.effect_fingerprint.value });
       transaction.putJournal(reversalJournal);
       transaction.putJournal(replacementJournal);
+      transaction.putConsumedDecisionProvenance(this.reversalDecisionProvenance(reversalJournalId, command.requested_at, transactionRef, correctionAuthorization.record, originalDecisionProvenance));
+      transaction.putConsumedDecisionProvenance(this.decisionProvenance(replacementJournalId, command.requested_at, transactionRef, replacement.trusted_authorization, replacement.trusted_tax_impact));
       transaction.putReversal(original.journal_entry_id, reversalJournalId);
       transaction.putCorrection(correction);
       transaction.putAudit(this.audit(command.organization_id, "POST_PAID_EXPENSE_CORRECTION", command.requester, command.request_id, command.trace_id, [original.journal_entry_id, reversalJournalId, replacementJournalId], command.requested_at));

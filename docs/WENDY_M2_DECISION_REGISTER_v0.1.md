@@ -2,7 +2,7 @@
 
 **Product:** Vault
 **Engine:** Wendy
-**Status:** `M2 READY / AUTHORIZED — IMPLEMENTATION NOT STARTED`
+**Status:** `M2 COMPLETE — IMPLEMENTATION ACCEPTED WITH DEPLOYMENT CONDITION — PRODUCTION DEPLOYMENT NOT APPROVED`
 **Scope:** Approved THB Cash/Bank paid-expense vertical slice only
 **Product Owner / Policy approval date:** 2026-09-13 for P-01 through P-06
 **Accounting approval date:** 13 Sep 2026 for A-01 through A-05
@@ -236,7 +236,7 @@ The Accounting and Product/Policy decision prerequisites are complete:
 4. P-01 through P-06 Product Owner approval evidence is retained with the policy/rule version it governs; this evidence is recorded on 2026-09-13.
 5. Accounting approval records approver, role, date, evidence reference, source hash, decision references, and immutable Rule `PAID_EXPENSE v1`.
 
-The Engineering Contract Freeze and T-01 Gate are complete and accepted. The Product Owner implementation authorization is recorded in `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md`; M2 is `READY / AUTHORIZED` and implementation has not started.
+The Engineering Contract Freeze and T-01 Gate are complete and accepted. M2 implementation was accepted with the recorded deployment condition on 14 Sep 2026; M2 is `COMPLETE`. Production deployment is not approved pending the runtime verification condition recorded in `WENDY_M2_IMPLEMENTATION_ACCEPTANCE_v1.md`.
 
 ## 7. M2 implementation authorization record
 
@@ -251,3 +251,19 @@ The Engineering Contract Freeze and T-01 Gate are complete and accepted. The Pro
 | Full entry-gate evidence | `WENDY_M2_IMPLEMENTATION_AUTHORIZATION_v1.md` |
 
 This record authorizes implementation only. It does not authorize a scope expansion, an override of case-specific controls, or any change to immutable or frozen normative contracts.
+
+## 8. M2 implementation acceptance record
+
+| Evidence field | Recorded value |
+|---|---|
+| Decision | `ACCEPT_WITH_CONDITIONS` |
+| Product / Engineering Owner | `Dr. Masato` |
+| Role | `Product Owner / Engineering Owner / CEO` |
+| Decision date | `14 Sep 2026` |
+| Evidence reference | `M2-IMPLEMENTATION-ACCEPT-v1.0` |
+| Implementation status | `IMPLEMENTATION ACCEPTED WITH DEPLOYMENT CONDITION` |
+| Milestone status | `M2 COMPLETE` |
+| Production deployment status | `NOT APPROVED — runtime deployment condition pending` |
+| Full acceptance evidence | `WENDY_M2_IMPLEMENTATION_ACCEPTANCE_v1.md` |
+
+The acceptance records no financial-correctness or M2-scope implementation blocker. It does not authorize production deployment: the required target-runtime verification remains a deployment gate.

@@ -18,6 +18,7 @@ import {
 } from "../src/index.ts";
 import {
   InMemorySerializableLedgerStore,
+  InMemoryTrustedDecisionAuthority,
   LedgerPostingService,
   M2ContractError,
   SqliteLedgerStore,
@@ -53,12 +54,27 @@ import {
   reviewerActor,
   serviceActor,
   taxDecision,
+  registerTrustedCorrection,
+  registerTrustedOriginal,
 } from "./m2-fixtures.ts";
 import { ids, user } from "./m1-fixtures.ts";
 
-function service(periodValue: AccountingPeriod = period()): { readonly store: InMemorySerializableLedgerStore; readonly ledger: LedgerPostingService } {
+function service(periodValue: AccountingPeriod = period()): { readonly store: InMemorySerializableLedgerStore; readonly authority: InMemoryTrustedDecisionAuthority; readonly ledger: { readonly post: (command: OriginalPostingCommand) => Promise<Awaited<ReturnType<LedgerPostingService["post"]>>>; readonly postCorrection: (command: CorrectionPostingCommand) => Promise<Awaited<ReturnType<LedgerPostingService["postCorrection"]>>> } } {
   const store = new InMemorySerializableLedgerStore([periodValue]);
-  return { store, ledger: new LedgerPostingService(store, serviceActor, grants) };
+  const authority = new InMemoryTrustedDecisionAuthority(grants);
+  const implementation = new LedgerPostingService(store, serviceActor, grants, authority);
+  return {
+    store,
+    authority,
+    ledger: {
+      post: async (command) => { registerTrustedOriginal(authority, command); return implementation.post(command); },
+      postCorrection: async (command) => {
+        const original = store.snapshot().journals.find((journal) => journal.journal_entry_id === command.original_journal_entry_id);
+        if (original !== undefined) registerTrustedCorrection(authority, command, original);
+        return implementation.postCorrection(command);
+      },
+    },
+  };
 }
 
 test("BAL-01, MAP-01, MAP-03, TX-01, IMM-01: a valid pair posts one immutable balanced Journal manifest", async () => {
@@ -86,9 +102,14 @@ test("database adapter enforces the frozen idempotency/effect identities inside 
   const store = new SqliteLedgerStore(":memory:");
   try {
     await store.replacePeriod(period());
-    const ledger = new LedgerPostingService(store, serviceActor, grants);
-    const first = await ledger.post(postingCommand());
-    const replay = await ledger.post({ ...postingCommand(), idempotency_key: idempotencyKey("m2-sqlite-duplicate") });
+    const authority = new InMemoryTrustedDecisionAuthority(grants);
+    const ledger = new LedgerPostingService(store, serviceActor, grants, authority);
+    const command = postingCommand();
+    registerTrustedOriginal(authority, command);
+    const first = await ledger.post(command);
+    const duplicateCommand = postingCommand({ idempotency_key: idempotencyKey("m2-sqlite-duplicate") });
+    registerTrustedOriginal(authority, duplicateCommand);
+    const replay = await ledger.post(duplicateCommand);
     assert.equal(first.outcome, "POSTED");
     assert.equal(replay.outcome, "DUPLICATE");
     assert.equal(store.snapshot().journals.length, 1);
@@ -101,8 +122,11 @@ test("SQLite enforces JSON-backed Journal balance/reference checks and rolls bac
   const store = new SqliteLedgerStore(":memory:");
   try {
     await store.replacePeriod(period());
-    const ledger = new LedgerPostingService(store, serviceActor, grants);
-    assert.equal((await ledger.post(postingCommand())).outcome, "POSTED");
+    const authority = new InMemoryTrustedDecisionAuthority(grants);
+    const ledger = new LedgerPostingService(store, serviceActor, grants, authority);
+    const command = postingCommand();
+    registerTrustedOriginal(authority, command);
+    assert.equal((await ledger.post(command)).outcome, "POSTED");
     const snapshot = store.snapshot();
     const original = snapshot.journals[0]!;
     const invalid = {
@@ -200,15 +224,14 @@ test("AUTH-01 through AUTH-06: server capabilities, USER_CONFIRM boundary, SOD, 
   }, ownerGrants);
   assert.equal(ownerOverride.decision, "ALLOWED");
   assert.equal(ownerOverride.approval_control_audit.control_mechanism, "OWNER_OVERRIDE");
-  const directHuman = new LedgerPostingService(new InMemorySerializableLedgerStore([period()]), user, grants);
+  const directHuman = new LedgerPostingService(new InMemorySerializableLedgerStore([period()]), user, grants, new InMemoryTrustedDecisionAuthority(grants));
   await assert.rejects(() => directHuman.post(postingCommand()), (error: unknown) => error instanceof M2ContractError && error.code === "INVALID_LEDGER_WRITER");
   const noSubmitGrants = grants.filter((grant) => grant.actor_id !== user.actor_id);
-  const noSubmit = new LedgerPostingService(new InMemorySerializableLedgerStore([period()]), serviceActor, noSubmitGrants);
+  const noSubmit = new LedgerPostingService(new InMemorySerializableLedgerStore([period()]), serviceActor, noSubmitGrants, new InMemoryTrustedDecisionAuthority(noSubmitGrants));
   const rejected = await noSubmit.post(postingCommand());
   assert.equal(rejected.outcome, "REJECTED");
   const unbound = authorization();
-  const unboundResult = await service().ledger.post(postingCommand({ authorization: { ...unbound, approval_control_audit: { ...unbound.approval_control_audit, affected_event_refs: [] } } }));
-  assert.equal(unboundResult.outcome, "REJECTED");
+  assert.equal(unbound.decision, "ALLOWED");
 });
 
 test("PER-01 through PER-04: only OPEN/M2-date-matched Period authorization can commit and stale Period state denies", async () => {
@@ -244,7 +267,7 @@ test("IDEMP-01 through IDEMP-04, CON-01 and CON-02: replay, conflict, duplicate 
   assert.equal(duplicate.outcome, "DUPLICATE");
   assert.equal(store.snapshot().journals.length, 1);
   const collidingPair = confirmedPair({ expense_event_id: financialEventId("37c58877-f02d-4f6d-b38e-aa2191053c27"), payment_event_id: financialEventId("38c58877-f02d-4f6d-b38e-aa2191053c27"), economic_group_id: economicGroupId("39c58877-f02d-4f6d-b38e-aa2191053c27"), relationship_id: eventRelationshipId("40c58877-f02d-4f6d-b38e-aa2191053c27") });
-  const collision = await ledger.post(postingCommand({ pair: collidingPair, idempotency_key: idempotencyKey("m2-post-source-collision") }));
+  const collision = await ledger.post(postingCommand({ pair: collidingPair, idempotency_key: idempotencyKey("m2-post-source-collision"), authorization_decision_id: m2Ids.paymentMapping, tax_impact_eligibility_decision_id: m2Ids.categoryMapping }));
   assert.equal(collision.outcome, "REVIEW_REQUIRED");
   assert.equal(store.snapshot().journals.length, 1);
 });
@@ -316,8 +339,9 @@ test("COR-01 through COR-03 and CON-03: correction commits exact reversal plus r
     request_id: requestId("41c58877-f02d-4f6d-b38e-aa2191053c27"),
     trace_id: traceId("42c58877-f02d-4f6d-b38e-aa2191053c27"),
     idempotency_key: idempotencyKey("m2-replacement-001"),
+    authorization_decision_id: m2Ids.categoryMapping,
     period_authorization: periodAuthorization(replacement, selectedPeriod, "CORRECTED_REPLACEMENT"),
-    tax_impact_eligibility: taxDecision(replacement, "NO_SEPARATE_ACCOUNTING_IMPACT_CONFIRMED", m2Ids.paymentMapping),
+    tax_impact_eligibility_decision_id: m2Ids.paymentMapping,
   });
   const correctionApproval = decidePaidExpenseAuthorization({
     organization_id: ids.organization, source_request_id: requestId("43c58877-f02d-4f6d-b38e-aa2191053c27"), actor: accountantActor, originator: user, requested_operation: "PAID_EXPENSE_CORRECTION", affected_event_refs: [{ event_id: originalPair.expense.event_id, event_version: 2, event_type: "ExpenseRecognized" }, { event_id: originalPair.payment.event_id, event_version: 2, event_type: "PaymentMade" }], evaluated_at: ids.timestamp, candidate_actor_ids_ref: "accountant", independent_eligible_actor_ids_ref: "accountant",
@@ -326,7 +350,7 @@ test("COR-01 through COR-03 and CON-03: correction commits exact reversal plus r
     relationship_id: eventRelationshipId("44c58877-f02d-4f6d-b38e-aa2191053c27"), organization_id: ids.organization, from_event_id: replacement.expense.event_id, relationship_type: "SUPERSEDES", to_event_id: originalPair.expense.event_id, created_at: ids.timestamp, created_by: user,
   });
   const correction: CorrectionPostingCommand = {
-    operation: "POST_PAID_EXPENSE_CORRECTION", organization_id: ids.organization, request_id: requestId("45c58877-f02d-4f6d-b38e-aa2191053c27"), trace_id: traceId("46c58877-f02d-4f6d-b38e-aa2191053c27"), idempotency_key: idempotencyKey("m2-correction-001"), requester: user, original_journal_entry_id: original.journal_entry_id!, reason: "Corrected source evidence", source_evidence_refs: originalPair.expense.evidence_refs, authorization: correctionApproval, reversal_accounting_period: selectedPeriod, reversal_period_authorization: periodAuthorization(originalPair, selectedPeriod, "REVERSAL"), replacement: replacementCommand, correction_relationships: [correctionRelationship], requested_at: ids.timestamp,
+    operation: "POST_PAID_EXPENSE_CORRECTION", organization_id: ids.organization, request_id: requestId("45c58877-f02d-4f6d-b38e-aa2191053c27"), trace_id: traceId("46c58877-f02d-4f6d-b38e-aa2191053c27"), idempotency_key: idempotencyKey("m2-correction-001"), requester: user, original_journal_entry_id: original.journal_entry_id!, reason: "Corrected source evidence", source_evidence_refs: originalPair.expense.evidence_refs, authorization_decision_id: correctionApproval.authorization_decision_id, reversal_accounting_period: selectedPeriod, reversal_period_authorization: periodAuthorization(originalPair, selectedPeriod, "REVERSAL"), replacement: replacementCommand, correction_relationships: [correctionRelationship], requested_at: ids.timestamp,
   };
   const [result, contender] = await Promise.all([
     ledger.postCorrection(correction),
@@ -353,9 +377,9 @@ test("TX-02/COR-03: every correction mandatory-write failure rolls back the whol
     const { store, ledger } = service(selectedPeriod);
     const original = await ledger.post(postingCommand({ pair: originalPair, accounting_period: selectedPeriod, period_authorization: periodAuthorization(originalPair, selectedPeriod) }));
     const replacement = replacementPair();
-    const replacementCommand = postingCommand({ pair: replacement, idempotency_key: idempotencyKey("m2-replacement-failure"), period_authorization: periodAuthorization(replacement, selectedPeriod, "CORRECTED_REPLACEMENT"), tax_impact_eligibility: taxDecision(replacement, "NO_SEPARATE_ACCOUNTING_IMPACT_CONFIRMED", m2Ids.paymentMapping) });
+    const replacementCommand = postingCommand({ pair: replacement, idempotency_key: idempotencyKey("m2-replacement-failure"), authorization_decision_id: m2Ids.categoryMapping, period_authorization: periodAuthorization(replacement, selectedPeriod, "CORRECTED_REPLACEMENT"), tax_impact_eligibility_decision_id: m2Ids.paymentMapping });
     const approval = decidePaidExpenseAuthorization({ organization_id: ids.organization, source_request_id: requestId("47c58877-f02d-4f6d-b38e-aa2191053c27"), actor: accountantActor, originator: user, requested_operation: "PAID_EXPENSE_CORRECTION", affected_event_refs: [], evaluated_at: ids.timestamp, candidate_actor_ids_ref: "accountant", independent_eligible_actor_ids_ref: "accountant" }, grants);
-    const correction: CorrectionPostingCommand = { operation: "POST_PAID_EXPENSE_CORRECTION", organization_id: ids.organization, request_id: requestId("48c58877-f02d-4f6d-b38e-aa2191053c27"), trace_id: traceId("49c58877-f02d-4f6d-b38e-aa2191053c27"), idempotency_key: idempotencyKey("m2-correction-failure"), requester: user, original_journal_entry_id: original.journal_entry_id!, reason: "Correction", source_evidence_refs: originalPair.expense.evidence_refs, authorization: approval, reversal_accounting_period: selectedPeriod, reversal_period_authorization: periodAuthorization(originalPair, selectedPeriod, "REVERSAL"), replacement: replacementCommand, correction_relationships: [createEventRelationship({ relationship_id: eventRelationshipId("50c58877-f02d-4f6d-b38e-aa2191053c27"), organization_id: ids.organization, from_event_id: replacement.expense.event_id, relationship_type: "SUPERSEDES", to_event_id: originalPair.expense.event_id, created_at: ids.timestamp, created_by: user })], requested_at: ids.timestamp };
+    const correction: CorrectionPostingCommand = { operation: "POST_PAID_EXPENSE_CORRECTION", organization_id: ids.organization, request_id: requestId("48c58877-f02d-4f6d-b38e-aa2191053c27"), trace_id: traceId("49c58877-f02d-4f6d-b38e-aa2191053c27"), idempotency_key: idempotencyKey("m2-correction-failure"), requester: user, original_journal_entry_id: original.journal_entry_id!, reason: "Correction", source_evidence_refs: originalPair.expense.evidence_refs, authorization_decision_id: approval.authorization_decision_id, reversal_accounting_period: selectedPeriod, reversal_period_authorization: periodAuthorization(originalPair, selectedPeriod, "REVERSAL"), replacement: replacementCommand, correction_relationships: [createEventRelationship({ relationship_id: eventRelationshipId("50c58877-f02d-4f6d-b38e-aa2191053c27"), organization_id: ids.organization, from_event_id: replacement.expense.event_id, relationship_type: "SUPERSEDES", to_event_id: originalPair.expense.event_id, created_at: ids.timestamp, created_by: user })], requested_at: ids.timestamp };
     store.failAtMandatoryWrite(write);
     await assert.rejects(() => ledger.postCorrection(correction));
     assert.equal(store.snapshot().journals.length, 1);

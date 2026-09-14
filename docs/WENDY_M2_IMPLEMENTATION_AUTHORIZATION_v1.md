@@ -2,7 +2,7 @@
 
 **Product:** Vault
 **Engine:** Wendy
-**Status:** `M2 READY / AUTHORIZED — IMPLEMENTATION NOT STARTED`
+**Status:** `M2 COMPLETE — IMPLEMENTATION ACCEPTED WITH DEPLOYMENT CONDITION — PRODUCTION DEPLOYMENT NOT APPROVED`
 **Authorization scope:** frozen `PAID_EXPENSE v1` vertical slice only
 
 ## 1. Product Owner authorization evidence
@@ -39,3 +39,20 @@ This authorization permits implementation work only. It does not create a Journa
 
 Implementation remains subject to the release-blocking test contract and the approved PAID_EXPENSE v1 scope. A change to an immutable Accounting Rule or frozen contract requires the appropriate new version and approval; it is not authorized by this record.
 
+## 4. Formal implementation acceptance status
+
+The implementation authorized by this record is accepted under the separately recorded Product / Engineering acceptance evidence:
+
+| Evidence field | Recorded value |
+|---|---|
+| Decision | `ACCEPT_WITH_CONDITIONS` |
+| Product / Engineering Owner | `Dr. Masato` |
+| Role | `Product Owner / Engineering Owner / CEO` |
+| Decision date | `14 Sep 2026` |
+| Evidence reference | `M2-IMPLEMENTATION-ACCEPT-v1.0` |
+| M2 implementation status | `IMPLEMENTATION ACCEPTED WITH DEPLOYMENT CONDITION` |
+| M2 milestone status | `M2 COMPLETE` |
+| Production deployment | `NOT APPROVED` |
+| Full acceptance record | `WENDY_M2_IMPLEMENTATION_ACCEPTANCE_v1.md` |
+
+The only remaining gate is the non-functional production runtime deployment condition. It does not reopen any frozen M2 contract or authorize a scope expansion.

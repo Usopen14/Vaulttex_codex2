@@ -5,6 +5,7 @@ export * from "./fingerprints.ts";
 export * from "./mapping.ts";
 export * from "./tax-impact.ts";
 export * from "./authorization.ts";
+export * from "./decision-authority.ts";
 export * from "./period.ts";
 export * from "./journal.ts";
 export * from "./ledger.ts";
