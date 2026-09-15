@@ -2,16 +2,19 @@
 
 **Product:** Vault  
 **Engine:** Wendy  
-**Status:** `PRODUCT / SECURITY DECISIONS FROZEN — PENDING PRODUCT / ENGINEERING CONTRACT FREEZE; NOT IMPLEMENTED`  
+**Status:** `FROZEN — NORMATIVE M3 RELEASE-BLOCKING TEST CONTRACT; IMPLEMENTATION READY / AUTHORIZED; NO PRODUCTION DEPLOYMENT`
 **Companions:** `WENDY_M3_SOURCE_EVIDENCE_SPEC_v0.1.md`, `WENDY_M3_SOURCE_EVIDENCE_SCHEMA_v0.1.md`
+**M3 frozen baseline commit:** `96b6d745151c06244bfdacf2cd3df8abbb7db906`
+**Freeze record:** `WENDY_M3_SOURCE_EVIDENCE_CONTRACT_FREEZE_v1.md`
+**Implementation authorization record:** `WENDY_M3_SOURCE_EVIDENCE_IMPLEMENTATION_AUTHORIZATION_v1.md`
 
 ## 1. Test-contract boundary
 
-These are proposed release-blocking M3 tests. They verify source/evidence immutability, provenance, organization isolation, and the non-authoritative candidate boundary. They do not authorize M3 code, alter M1/M2 tests, or test accounting/tax/Ledger outcomes as M3 behavior.
+These are normative release-blocking M3 tests. They verify source/evidence immutability, provenance, organization isolation, and the non-authoritative candidate boundary. They do not authorize M3 code, alter M1/M2 tests, or test accounting/tax/Ledger outcomes as M3 behavior.
 
 All fixture data must use two organizations, distinct authorized actors, immutable exact content bytes, and stable timestamps/identities. The test implementation must use independent repository/storage access paths for organization-isolation and immutable-history checks.
 
-## 2. Proposed release-blocking tests
+## 2. Normative release-blocking tests
 
 | Test ID | Required assertion | Expected result |
 |---|---|---|
@@ -68,4 +71,4 @@ The following require Engineering freeze or deployment configuration before test
 | Initial MIME/type allowlist, maximum size, and malware/content scanning placement | Security/Engineering deployment |
 | Acceptance of proposed canonical serialization versions | Engineering freeze |
 
-The test contract can be formally accepted only after those inputs and the M3 schema/spec are frozen together.
+The test contract is frozen with the M3 schema/spec. These engineering/deployment inputs must be selected and evidenced before an implementation or deployment uses the relevant adapter/configuration; they do not change the frozen test requirements.

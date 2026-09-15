@@ -9,3 +9,4 @@ export * from "./domain/rules/rules.ts";
 export * from "./domain/periods/periods.ts";
 export * from "./domain/contracts/engine.ts";
 export * from "./domain/events/financial-event.ts";
+export * from "./m3/index.ts";

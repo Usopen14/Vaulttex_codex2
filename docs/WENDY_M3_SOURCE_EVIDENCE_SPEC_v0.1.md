@@ -2,9 +2,12 @@
 
 **Product:** Vault  
 **Engine:** Wendy  
-**Status:** `PRODUCT / SECURITY DECISIONS FROZEN — PENDING PRODUCT / ENGINEERING CONTRACT FREEZE; NOT IMPLEMENTED`  
+**Status:** `FROZEN — M3 PRODUCT / ENGINEERING CONTRACT FREEZE COMPLETE / ACCEPTED; IMPLEMENTATION READY / AUTHORIZED; PRODUCTION DEPLOYMENT NOT AUTHORIZED`
 **Scope:** Organization-scoped source and evidence provenance for the first `PAID_EXPENSE` workflow.  
 **Baseline:** M1 `CLOSED / ACCEPTED`; M2 `COMPLETE — IMPLEMENTATION ACCEPTED WITH DEPLOYMENT CONDITION` at commit `0aea54a`.
+**M3 frozen baseline commit:** `96b6d745151c06244bfdacf2cd3df8abbb7db906`
+**Freeze record:** `WENDY_M3_SOURCE_EVIDENCE_CONTRACT_FREEZE_v1.md`
+**Implementation authorization record:** `WENDY_M3_SOURCE_EVIDENCE_IMPLEMENTATION_AUTHORIZATION_v1.md`
 
 ## 1. Purpose and authority boundary
 
@@ -242,4 +245,4 @@ No Product or Security policy decision remains open for this M3 contract boundar
 
 The Product/Security decision prerequisites are resolved. The reused M1/M2 provenance and authority boundaries remain compatible, and no accepted M1/M2 financial semantics changed.
 
-**Recommendation:** `READY_FOR_M3_PRODUCT_ENGINEERING_FREEZE`. This means the documents can enter formal Product/Engineering freeze review; it is not a freeze acceptance, implementation authorization, production-code authorization, commit, or push.
+**Freeze status:** `COMPLETE / ACCEPTED` under `M3-SOURCE-EVIDENCE-FREEZE-v1.0`. M3 implementation is `READY / AUTHORIZED` under `M3-SOURCE-EVIDENCE-IMPLEMENTATION-AUTH-v1.0`; production deployment remains not authorized. The deployment/security configuration dependencies recorded above do not change this frozen domain contract.
